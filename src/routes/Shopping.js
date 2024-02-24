@@ -9,6 +9,28 @@ function Shopping() {
   const [recipes, setRecipes] = useState({});
   const [shoppingList, setShoppingList] = useState([]);
 
+  const [masterIngredients, setMasterIngredients] = useState([]);
+
+  // ... other useEffect hooks
+
+  useEffect(() => {
+    const fetchMasterIngredients = async () => {
+      try {
+        let { data, error } = await supabase
+          .from('ingredients_master')
+          .select('*');
+  
+        if (error) throw error;
+  
+        setMasterIngredients(data);
+      } catch (error) {
+        console.error("Error fetching master ingredients:", error.message);
+      }
+    };
+  
+    fetchMasterIngredients();
+  }, []);
+
   useEffect(() => {
     const fetchUserData = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -62,30 +84,231 @@ function Shopping() {
   
   
 
+  
+  
+  const convertQuantities = (quantity, unit, conversionInfo) => {
+    // Initialize converted quantities
+    let converted = {
+      grams: null,
+      cups: null,
+      tablespoons: null,
+    };
+  
+    // Validate conversionInfo
+    if (conversionInfo && typeof conversionInfo === 'object') {
+      // Proceed with conversion based on the unit
+      switch (unit) {
+        case 'cups':
+
+          converted.cups = quantity  + ' cups';
+          converted.grams = (quantity * conversionInfo.cup_to_g).toFixed(1) + ' g';
+          converted.tablespoons = (quantity * (conversionInfo.cup_to_g / conversionInfo.tbsp_to_g)).toFixed(1) + ' tbsp';
+          break;
+        case 'g':
+          converted.grams = quantity + ' g';
+          converted.cups = (quantity / conversionInfo.cup_to_g).toFixed(1) + ' cups';
+          converted.tablespoons = (quantity / conversionInfo.tbsp_to_g).toFixed(1) + ' tbsp';
+          break;
+        case 'tbsp':
+          converted.tablespoons = quantity + ' tbsp';
+          converted.grams = (quantity * conversionInfo.tbsp_to_g).toFixed(1) + ' g';
+          converted.cups = (quantity * conversionInfo.tbsp_to_g / conversionInfo.cup_to_g).toFixed(1) + ' cups';
+          break;
+        default:
+          console.error('Unit not recognized for conversion');
+          return quantity + ' ' + unit; // Return the original quantity and unit if it's not one of the above
+      }
+    } else {
+      console.error('Invalid or missing conversion info');
+      return `${quantity} ${unit}`; // Return the original quantity and unit if conversion info is missing
+    }
+  
+    console.log(`Converted Quantities for ${quantity} ${unit}:`, converted);
+
+    // Filter out null values and join the string to form the final converted text
+    return Object.values(converted).filter(Boolean).join(', ');
+
+  };
+  
+  const parseQuantities = (quantitiesText) => {
+    const quantities = {
+      grams: 0,
+      cups: 0,
+      tablespoons: 0,
+    };
+  
+    console.log(`Parsing quantities from text: ${quantitiesText}`);
+    
+    // Extract only the numeric parts with units
+    const matches = quantitiesText.match(/(\d+\.?\d*\s*(g|grams?|cups?|tbsp))/gi);
+    
+    if (matches) {
+      matches.forEach(match => {
+        const parts = match.trim().split(/\s+/);
+        
+        if (parts.length === 2) {
+          const [valueStr, unit] = parts;
+          const value = parseFloat(valueStr);
+  
+          if (!isNaN(value)) {
+            if (unit.match(/^g(ram(s)?)?$/i)) {
+              quantities.grams += value;
+            } else if (unit.match(/^cup(s)?$/i)) {
+              quantities.cups += value;
+            } else if (unit.match(/^tbsp$/i)) {
+              quantities.tablespoons += value;
+            } else {
+              console.error(`Unrecognized unit: ${unit}`);
+            }
+          } else {
+            console.error(`Invalid value for unit ${unit}: ${valueStr}`);
+          }
+        } else {
+          console.error(`Incorrect format for quantities: ${match}`);
+        }
+      });
+    } else {
+      console.error(`No valid quantity-unit pairs found in text: ${quantitiesText}`);
+    }
+  
+    console.log(`Parsed Quantities:`, quantities);
+  
+    return quantities;
+  };
+  
+  
+  
+  
+
+// Helper function to combine two objects of quantities
+const combineQuantities = (quantities1, quantities2) => {
+  // Assuming that both quantities objects have the same structure
+  const combined = { ...quantities1 };
+
+  for (const unit in combined) {
+    if (quantities2[unit] !== undefined) {
+      combined[unit] += quantities2[unit];
+    }
+  }
+  console.log(`Combined Quantities:`, combined);
+
+  return combined;
+};
+
+// Helper function to format an object of quantities into a text representation
+const formatQuantities = (name, quantities) => {
+  // Assuming quantities is an object like { grams: 100, cups: 1, tablespoons: 16 }
+  const parts = [];
+  if (quantities.grams) parts.push(`${quantities.grams.toFixed(1)} g`);
+  if (quantities.cups) parts.push(`${quantities.cups.toFixed(1)} cups`);
+  if (quantities.tablespoons) parts.push(`${quantities.tablespoons.toFixed(1)} tbsp`);
+
+  console.log(`Formatted Quantities for ${name}:`, parts.join(', '));
+
+  return `${name}: ${parts.join(', ')}`;
+};
+
+  
   const updateShoppingList = () => {
     let list = {};
-    Object.keys(recipes).forEach((recipeTitle) => {
-      const recipe = recipes[recipeTitle];
+  
+    // Iterate through each recipe
+    Object.keys(recipes).forEach((recipeId) => {
+      const recipe = recipes[recipeId];
+  
+      // Only process recipes that have been selected
       if (recipe.count > 0) {
+  
+        // Iterate through each ingredient in the recipe
         recipe.ingredients.forEach((ingredient) => {
-          if (list[ingredient.name]) {
-            list[ingredient.name].quantity +=
-              ingredient.quantity * recipe.count;
-          } else {
-            list[ingredient.name] = {
-              ...ingredient,
-              quantity: ingredient.quantity * recipe.count,
-            };
-          }
-        });
+          const masterIngredient = masterIngredients.find((mi) => mi.name === ingredient.name);
+  
+          // Skip if there's no matching master ingredient
+          if (!masterIngredient) return;
+  
+        // Inside updateShoppingList
+// ...
+if (typeof masterIngredient.conversion_info === 'string') {
+  try {
+    masterIngredient.conversion_info = JSON.parse(masterIngredient.conversion_info);
+  } catch (e) {
+    console.error('Error parsing conversion info:', e);
+    return; // Skip this ingredient if conversion info is invalid
+  }
+}
+// Calculate the total quantity needed for this recipe
+const totalQuantity = ingredient.quantity * recipe.count;
+// Ensure conversion_info is an object before attempting to use it
+if (!masterIngredient.conversion_info || typeof masterIngredient.conversion_info !== 'object') {
+  console.error('Conversion info is not an object:', masterIngredient.conversion_info);
+  return; // Skip this ingredient if conversion info is not an object
+}
+
+// Now it's safe to use masterIngredient.conversion_info
+const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, masterIngredient.conversion_info);
+
+
+
+          // Construct the text representation of the ingredient
+          const ingredientText = `${ingredient.name}: ${convertedQuantities}`;
+  
+           // Check if we already have this ingredient in the list
+        if (list[ingredient.name]) {
+          // Parse the existing quantities and the new quantities
+          const existingQuantities = parseQuantities(list[ingredient.name].text);
+          const newQuantities = parseQuantities(convertedQuantities);
+          console.log(`Existing Quantities for ${ingredient.name}:`, existingQuantities);
+          console.log(`New Quantities for ${ingredient.name}:`, newQuantities);
+          // Combine the existing and new quantities
+          const combinedQuantities = combineQuantities(existingQuantities, newQuantities);
+          console.log(`Combined Quantities for ${ingredient.name}:`, combinedQuantities);
+
+          // Update the text representation with combined quantities
+          list[ingredient.name].text = formatQuantities(ingredient.name, combinedQuantities);
+        } else {
+          // If it's the first time this ingredient is being added, just set it
+          list[ingredient.name] = { text: ingredientText };
+        }
+
+
+
+        console.log(`Converted Quantities Text for ${ingredient.name}:`, ingredientText);
+      });
+
+      
+    }
+  });
+  
+    // Combine entries with the same name and sum their quantities
+    const combinedList = Object.values(list).reduce((acc, item) => {
+      const existing = acc.find(entry => entry.name === item.name);
+      if (existing) {
+        existing.text += `; ${item.text}`;
+      } else {
+        acc.push({ ...item, name: item.name });
       }
-    });
-    setShoppingList(Object.values(list));
+      return acc;
+    }, []);
+
+    console.log(`Final Shopping List:`, Object.values(list).map(item => item.text));
+
+
+    // Set the shopping list state with the combined and processed list
+    setShoppingList(Object.values(list).map(item => item.text));
   };
 
+
+  
+  
   useEffect(() => {
     updateShoppingList();
-  }, [recipes]);
+  }, [recipes, masterIngredients]);
+  
+  
+  
+  
+  
+
 
   const handleIncrement = (recipeId) => {
     setRecipes((prevRecipes) => ({
@@ -117,14 +340,16 @@ function Shopping() {
             <h2 className="text-2xl font-bold mb-4  border-b-2 border-black-200">Shopping List</h2>
             {Object.values(recipes).some(recipe => recipe.count > 0) ? (
               <>
-                <ul className="list-none">
-                  {shoppingList.map((item, index) => (
-                    <li key={item.name} className={`animate-fade-in flex gap-3 items-center p-2 mb-1  `}>
-                      <span className="text-teal-700">{item.name}</span>
-                      <strong className="text-teal-900">{item.quantity} {item.unit}</strong>
-                    </li>
-                  ))}
-                </ul>
+<ul className="list-none">
+  {shoppingList.map((item, index) => (
+    <li key={index} className="animate-fade-in flex gap-3 items-center p-2 mb-1">
+      {item}
+    </li>
+  ))}
+</ul>
+
+
+
                 <div className="mt-4">
                   <h3 className="text-xl font-semibold mb-4 border-b-2 border-black-200">Selected Recipes</h3>
                   <ul className="list-none pl-0">

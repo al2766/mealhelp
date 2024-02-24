@@ -4,8 +4,6 @@ import { signUpNewUser, signInWithEmail, signInWithMagicLink, signOut } from "..
 import { v4 as uuidv4 } from "uuid"; // Make sure to import uuid
 
 export default function AddRecipe() {
-  const [masterIngredients, setMasterIngredients] = useState([]);
-
   const [instructions, setInstructions] = useState([""]);
   const [imageFile, setImageFile] = useState(null);
   const [email, setEmail] = useState("");
@@ -26,7 +24,6 @@ export default function AddRecipe() {
   const [showPhoneSignup, setShowPhoneSignup] = useState(false);
   const [showMagicLinkSignin, setShowMagicLinkSignin] = useState(false);
   const [showEmailVerificationMessage, setShowEmailVerificationMessage] = useState(false);
-  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [isIngredientSelected, setisIngredientSelected] = useState(true); // New state for success modal
   const [showSuccessModal, setShowSuccessModal] = useState(false); // New state for success modal
@@ -38,27 +35,29 @@ export default function AddRecipe() {
   const [currentIngredientIndex, setCurrentIngredientIndex] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [startFadeOut, setStartFadeOut] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [accountExistsAlert, setAccountExistsAlert] = useState(false);
 
 
-  const renderEmailVerificationMessage = () => {
-    if (showEmailVerificationMessage) {
-      return (
-        <div className={`${
-          startFadeOut ? "animate-fade-out" : "animate-fade-in"
-        } fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center`}>
-          <div className="bg-white p-5 rounded-lg shadow-lg w-96">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Sign up Successful</h2>
-            <p className="text-gray-600">Signing you in now...</p>
-            <div className="flex justify-end mt-4">
-            <div className="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-8 w-8"></div>
-  
-            </div>
+const renderEmailVerificationMessage = () => {
+  if (showEmailVerificationMessage) {
+    return (
+      <div className={`${
+        startFadeOut ? "animate-fade-out" : "animate-fade-in"
+      } fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center`}>
+        <div className="bg-white p-5 rounded-lg shadow-lg w-96">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Sign up Successful</h2>
+          <p className="text-gray-600">Signing you in now...</p>
+          <div className="flex justify-end mt-4">
+          <div className="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-8 w-8"></div>
+
           </div>
         </div>
-      );
-    }
-    return null;
-  };
+      </div>
+    );
+  }
+  return null;
+};
 
 
   // Modify the click handler for closing the modal
@@ -70,26 +69,39 @@ export default function AddRecipe() {
     }, 350); // duration of the fade-out animation
   };
 
-  const fetchIngredientsMaster = async () => {
-    try {
-      let { data, error } = await supabase
-        .from('ingredients_master')
-        .select('*');
-    
-      if (error) throw error;
-  
-      console.log('Master ingredients fetched: ', data); // Log the fetched data
-      setMasterIngredients(data);
-    } catch (error) {
-      console.error("Error fetching master ingredients:", error.message);
-    }
-  };
-  
   useEffect(() => {
-    fetchIngredientsMaster();
+    const fetchUserIngredients = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const user = session?.user;
+
+        if (user) {
+          const { data, error } = await supabase
+            .from("user_ingredients")
+            .select("ingredient_name")
+            .eq("user_id", user.id);
+
+          if (error) {
+            throw error;
+          }
+
+          const userIngredients = data.map((item) => item.ingredient_name);
+
+          // Log fetched data for debugging
+          console.log("Fetched ingredients:", userIngredients);
+
+          // Update the state with the fetched user ingredients
+          setUserIngredients(userIngredients);
+        }
+      } catch (error) {
+        console.error("Error fetching ingredients:", error);
+      }
+    };
+
+    fetchUserIngredients();
   }, []);
-  
-  
 
   // ... existing functions
 
@@ -173,14 +185,26 @@ export default function AddRecipe() {
     };
   }, []);
 
-
-
-
-
-
   const handleSignUp = async () => {
     if (!email || !password || !confirmPassword) {
       setAuthError("Please fill all the fields.");
+      return;
+    }
+    if (email || password || confirmPassword) {
+      setShowEmailVerificationMessage(true);
+      setStartFadeOut(false); // Reset fade-out state before showing the modal
+    
+      setTimeout(() => {
+        setStartFadeOut(true); // Begin fade-out animation
+    
+        setTimeout(() => {
+          setShowEmailVerificationMessage(false); // Hide the modal after the animation completes
+    // Reset fade-out state
+        }, 650); // This should match the fade-out animation duration
+    
+      }, 3000); // Time for which the modal is displayed before starting to fade out
+    
+    
       return;
     }
   
@@ -190,45 +214,34 @@ export default function AddRecipe() {
     }
   
     setIsLoading(true);
+
   
-    try {
-      let { data: users, error } = await supabase
-        .from('users') // Replace with your user table name
-        .select('email')
-        .eq('email', email);
-  
-      if (error) {
-        console.error("Supabase query error:", error);
-        throw error;
-      }
-  
-      if (users.length > 0) {
-        setAuthError("An account with this email already exists.");
-        setIsLoading(false);
-        return;
-      }
-    } catch (error) {
-      setAuthError("Error during user check.");
-      setIsLoading(false);
-      return;
-    }
-  
+    setEmailVerified(false); // Assuming email needs verification
+
+
     const response = await signUpNewUser(email, password);
     setIsLoading(false);
-  
+
     if (response.error) {
-      setAuthError(response.error.message || "An error occurred during sign up.");
+      // If there is an error object, use its message
+      setAuthError(
+        response.error.message || "An error occurred during sign up."
+      );
     } else if (response.data && response.data.user) {
+
+
+        
+
       setShowEmailVerificationMessage(true);
-      setTimeout(() => {
-        setIsSignedIn(true);
-        setShowEmailVerificationMessage(false);
-      }, 3000);
+      setTimeout(() => { 
+       // setIsSignedIn(true);
+    }, 3000);
+    
     } else {
+      // Handle cases where there's no error and no user (unexpected)
       setAuthError("Unexpected error during sign up. Please try again.");
     }
   };
-  
 
   const handleSignInWithEmail = async () => {
     if (!email || !password) {
@@ -243,10 +256,10 @@ export default function AddRecipe() {
     setIsLoading(false);
 
     if (user) {
-
+    
       setIsSignedIn(true);
       setAuthError("");
- 
+
     } else {
       setAuthError(error.message);
     }
@@ -450,21 +463,20 @@ export default function AddRecipe() {
     }
   };
 
-
-  
   const handleIngredientSelection = (ingredientName) => {
-    // Update the specific ingredient in the list with the selected name
-    setIngredients((currentIngredients) =>
-      currentIngredients.map((ingredient, index) => {
-        if (index === currentIngredientIndex) {
-          return { ...ingredient, name: ingredientName };
-        }
-        return ingredient;
-      })
-    );
-  
-    // Close the modal
-    setShowIngredientModal(false);
+    const updatedIngredients = ingredients.map((ingredient, i) => {
+      if (i === currentIngredientIndex) {
+        return { ...ingredient, name: ingredientName };
+      }
+      return ingredient;
+    });
+
+    setIngredients(updatedIngredients);
+    setStartFadeOut(true);
+    setTimeout(() => {
+      setShowIngredientModal(false);
+      setStartFadeOut(false); // Reset fade-out state
+    }, 350); // duration of the fade-out animation
   };
 
    
@@ -504,7 +516,7 @@ export default function AddRecipe() {
                   Password
                 </label>
                 <input
-                  className="shadow appearance-none border border-red rounded w-full py-2 px-3 text-grey-darker mb-3"
+                  className="shadow appearance-none border border-red rounded w-full py-2 px-3 text-grey-darker "
                   id="password"
                   type="password"
                   placeholder="******************"
@@ -529,10 +541,30 @@ export default function AddRecipe() {
       onChange={(e) => setConfirmPassword(e.target.value)}
     />
   </div>
+)}{accountExistsAlert && (
+  <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
+    <div className="bg-white p-5 rounded-lg shadow-lg w-96">
+      <h2 className="text-xl font-semibold text-gray-900 mb-4">Account Exists</h2>
+      <p className="text-gray-600">An account already exists with this email.</p>
+      <div className="flex justify-end mt-4">
+        <button 
+          onClick={() => {
+            setAccountExistsAlert(false);
+            setIsSigningUp(false); // Switch to sign-in form
+          }} 
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+        >
+          Sign In
+        </button>
+      </div>
+    </div>
+  </div>
 )}
+
+
               <div className="flex items-center justify-between">
                 <button
-                  className="bg-blue-500 hover:bg-blue-dark text-white font-bold py-2 px-4 rounded"
+                  className="mr-2 bg-blue-500 hover:bg-blue-dark text-white font-bold py-2 px-4 rounded"
                   type="button"
                   onClick={isSigningUp ? handleSignUp : handleSignInWithEmail}
                 >
@@ -607,59 +639,54 @@ export default function AddRecipe() {
 
                 <div className="text-white shadow-md bg-[#58acbb] p-4 mb-8 rounded-lg">
                   <h3 className="text-xl font-semibold  mb-4">Ingredients</h3>
-    
-  {ingredients.map((ingredient, index) => (
-    <div 
-    key={index}   
-    className="relative flex flex-col sm:flex-row sm:items-center mb-4"
-    >
+                  {ingredients.map((ingredient, index) => (
+                    <div
+                      key={index}
+                      className="relative flex flex-col sm:flex-row sm:items-center mb-4"
+                    >
+                      <input
+                        type="text"
+                        value={ingredient.name}
+                        required
+                        className="bg-transparent w-[0.1rem] h-[0.1rem] ml-[8rem] mt-9 absolute "
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCurrentIngredientIndex(index);
+                          setShowIngredientModal(true);
+                        }}
+                        className="sm:w-1/6 sm:flex-grow bg-white text-black px-10 py-2 rounded hover:bg-gray-200 mb-2 sm:mb-0"
+                      >
+                        {ingredient.name || "Choose Ingredient"}
+                      </button>
 
-      <input
-        type="text"
-        value={ingredient.name}
-        className="bg-transparent w-[0.1rem] h-[0.1rem] ml-[8rem] mt-9 absolute "
-        required
-      />
-      <button
-       type="button"
-       onClick={() => {
-         setCurrentIngredientIndex(index);
-         setShowIngredientModal(true);
-        }}
-        className="sm:w-1/6 sm:flex-grow bg-white text-black px-10 py-2 rounded hover:bg-gray-200 mb-2 sm:mb-0"
-        >
- {ingredient.name || "Choose Ingredient"}     
-  </button>
-  <div className="flex flex-1 sm:flex-row sm:ml-2">
-
-      <input
-        type="number"
-        name="quantity"
-        value={ingredient.quantity}
-        onChange={(e) => handleIngredientChange(index, e)}
-        placeholder="Quantity"
-        className="text-black p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-200 w-full sm:flex-grow sm:ml-2"
-        required
-      />
-      <select
-        name="unit"
-        value={ingredient.unit}
-        onChange={(e) => handleIngredientChange(index, e)}
-        className="text-black p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-200 w-full sm:flex-grow sm:ml-2"
-        required
-      >
-        <option value="">Unit</option>
-        <option value="g">grams</option>
-        <option value="pieces">pieces</option>
-        <option value="cups">cups</option>
-        <option value="tbsp">tablespoons</option>
-        {/* ...other units */}
-      </select>
-      </div>
-    </div>
-  ))}
-
-
+                      <div className="flex flex-1 sm:flex-row sm:ml-2">
+                        <input
+                          type="number"
+                          name="quantity"
+                          value={ingredient.quantity}
+                          onChange={(e) => handleIngredientChange(index, e)}
+                          placeholder="Quantity"
+                          className="text-black p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-200 w-full sm:flex-grow sm:ml-2"
+                          required
+                        />
+                        <select
+                          name="unit"
+                          value={ingredient.unit}
+                          onChange={(e) => handleIngredientChange(index, e)}
+                          className="text-black p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-200 w-full sm:flex-grow sm:ml-2"
+                          required
+                        >
+                          <option disabled value="">
+                            Unit
+                          </option>
+                          <option value="g">g</option>
+                          <option value="pieces">pieces</option>
+                        </select>
+                      </div>
+                    </div>
+                  ))}
 
                   <button
                     type="button"
@@ -672,7 +699,7 @@ export default function AddRecipe() {
 
                 <div className="text-white shadow-md bg-[#58acbb] p-4 rounded-lg">
                   <h3 className="text-xl font-semibold  mb-4">Instructions</h3>
-                   {instructions.map((instruction, index) => (
+                  {instructions.map((instruction, index) => (
                     <div key={index} className="mb-2">
                       <label
                         className="block text-grey-darker text-sm font-bold mb-2"
@@ -742,21 +769,24 @@ export default function AddRecipe() {
 
                   <div className="overflow-y-scroll lg:max-h-[20rem] lg:max-w-[40rem] w-[55vw] h-[40vw]">
                     <ul className="grid grid-cols-2 lg:grid-cols-3 text-center list-none p-0">
-                    {masterIngredients
-  .filter((ingredientObj) =>
-    ingredientObj.name.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-  .map((ingredientObj, index) => (
-    <li key={index} className="text-lg mb-1">
-      <button
-        onClick={() => handleIngredientSelection(ingredientObj.name)}
-        className="bg-white shadow-md text-black px-4 py-2 rounded hover:bg-gray-100"
-      >
-        {ingredientObj.name}
-      </button>
-    </li>
-  ))}
-
+                      {userIngredients
+                        .filter((ingredient) =>
+                          ingredient
+                            .toLowerCase()
+                            .includes(searchQuery.toLowerCase())
+                        )
+                        .map((ingredient, index) => (
+                          <li key={index} className="text-lg mb-1">
+                            <button
+                              onClick={() =>
+                                handleIngredientSelection(ingredient, index)
+                              }
+                              className="bg-white shadow-md text-black px-4 py-2 rounded hover:bg-gray-100"
+                            >
+                              {ingredient}
+                            </button>
+                          </li>
+                        ))}
                     </ul>
                   </div>
                   <button
