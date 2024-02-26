@@ -92,6 +92,7 @@ function Shopping() {
       grams: null,
       cups: null,
       tablespoons: null,
+      pieces: null, 
     };
   
     // Validate conversionInfo
@@ -99,34 +100,66 @@ function Shopping() {
       // Proceed with conversion based on the unit
       switch (unit) {
         case 'cups':
-
-          converted.cups = quantity  + ' cups';
-          converted.grams = (quantity * conversionInfo.cup_to_g).toFixed(1) + ' g';
-          converted.tablespoons = (quantity * (conversionInfo.cup_to_g / conversionInfo.tbsp_to_g)).toFixed(1) + ' tbsp';
-          break;
+            // Direct conversion from cups to grams
+            converted.cups = `${quantity} cups`;
+            converted.grams = (quantity * conversionInfo.cup_to_g).toFixed(1) + ' g';
+            // Assuming conversion from grams to pieces if each_to_g is available
+            if (conversionInfo.each_to_g) {
+              let grams = quantity * conversionInfo.cup_to_g;
+                converted.pieces = (grams / conversionInfo.each_to_g).toFixed(1) + ' pieces';
+            }
+            converted.tablespoons = (quantity * conversionInfo.cup_to_g / conversionInfo.tbsp_to_g).toFixed(1) + ' tbsp';
+            break;
         case 'g':
-          converted.grams = quantity + ' g';
-          converted.cups = (quantity / conversionInfo.cup_to_g).toFixed(1) + ' cups';
-          converted.tablespoons = (quantity / conversionInfo.tbsp_to_g).toFixed(1) + ' tbsp';
-          break;
+            // Direct conversion for grams
+            converted.grams = `${quantity} g`;
+            // Conversion from grams to pieces if each_to_g is available
+            if (conversionInfo.each_to_g) {
+                converted.pieces = (quantity / conversionInfo.each_to_g).toFixed(1) + ' pieces';
+            }
+            // Conversions to cups and tablespoons
+            converted.cups = (quantity / conversionInfo.cup_to_g).toFixed(1) + ' cups';
+            converted.tablespoons = (quantity / conversionInfo.tbsp_to_g).toFixed(1) + ' tbsp';
+            break;
         case 'tbsp':
-          converted.tablespoons = quantity + ' tbsp';
-          converted.grams = (quantity * conversionInfo.tbsp_to_g).toFixed(1) + ' g';
-          converted.cups = (quantity * conversionInfo.tbsp_to_g / conversionInfo.cup_to_g).toFixed(1) + ' cups';
-          break;
-        default:
-          console.error('Unit not recognized for conversion');
-          return quantity + ' ' + unit; // Return the original quantity and unit if it's not one of the above
-      }
-    } else {
-      console.error('Invalid or missing conversion info');
-      return `${quantity} ${unit}`; // Return the original quantity and unit if conversion info is missing
-    }
-  
-    console.log(`Converted Quantities for ${quantity} ${unit}:`, converted);
+            // Direct conversion from tablespoons to grams
+            converted.tablespoons = `${quantity} tbsp`;
+            converted.grams = (quantity * conversionInfo.tbsp_to_g).toFixed(1) + ' g';
 
-    // Filter out null values and join the string to form the final converted text
-    return Object.values(converted).filter(Boolean).join(', ');
+            // Conversion from grams to pieces if each_to_g is available
+            if (conversionInfo.each_to_g) {
+              let grams = quantity * conversionInfo.tbsp_to_g;
+                converted.pieces = (grams / conversionInfo.each_to_g).toFixed(1) + ' pieces';
+             
+              }
+            converted.cups = (quantity * conversionInfo.tbsp_to_g / conversionInfo.cup_to_g).toFixed(1) + ' cups';
+            break;
+            case 'pieces':
+              if (conversionInfo.each_to_g) {
+                  converted.pieces = `${quantity} pieces`;
+                  let grams = quantity * conversionInfo.each_to_g;
+                  converted.grams = grams.toFixed(1) + ' g';
+                  // Ensure conversion from grams to cups and tablespoons is only applied if relevant
+                  if (conversionInfo.cup_to_g) {
+                      converted.cups = (grams / conversionInfo.cup_to_g).toFixed(1) + ' cups';
+                  }
+                  if (conversionInfo.tbsp_to_g) {
+                      converted.tablespoons = (grams / conversionInfo.tbsp_to_g).toFixed(1) + ' tbsp';
+                  }
+              } else {
+                  console.error("Missing each_to_g conversion for pieces.");
+                  return quantity + ' pieces'; // Fallback if no each_to_g conversion is available
+              }
+              break;
+          
+        default:
+            console.error('Unit not recognized for conversion');
+            return `${quantity} ${unit}`; // Return the original quantity and unit if it's not one of the above
+    }
+    
+    // Combine the converted values, filtering out any "N/A" values
+    return Object.values(converted).filter(val => val !== "N/A").join(', ');
+  }    
 
   };
   
@@ -135,12 +168,13 @@ function Shopping() {
       grams: 0,
       cups: 0,
       tablespoons: 0,
+      pieces:0
     };
   
     console.log(`Parsing quantities from text: ${quantitiesText}`);
     
     // Extract only the numeric parts with units
-    const matches = quantitiesText.match(/(\d+\.?\d*\s*(g|grams?|cups?|tbsp))/gi);
+    const matches = quantitiesText.match(/(\d+\.?\d*\s*(g|grams?|cups?|tbsp|pieces))/gi);
     
     if (matches) {
       matches.forEach(match => {
@@ -157,6 +191,8 @@ function Shopping() {
               quantities.cups += value;
             } else if (unit.match(/^tbsp$/i)) {
               quantities.tablespoons += value;
+            }   else if (unit.match(/^(pieces)$/i)) {
+              quantities.pieces += value; // Handle pieces or each
             } else {
               console.error(`Unrecognized unit: ${unit}`);
             }
@@ -182,18 +218,21 @@ function Shopping() {
 
 // Helper function to combine two objects of quantities
 const combineQuantities = (quantities1, quantities2) => {
-  // Assuming that both quantities objects have the same structure
   const combined = { ...quantities1 };
 
-  for (const unit in combined) {
-    if (quantities2[unit] !== undefined) {
-      combined[unit] += quantities2[unit];
-    }
+  // Loop through quantities2 and add them to combined, initializing if necessary
+  for (const unit of Object.keys(quantities2)) {
+      if (combined[unit] !== undefined) {
+          combined[unit] += quantities2[unit];
+      } else {
+          // Initialize if this unit wasn't in quantities1
+          combined[unit] = quantities2[unit];
+      }
   }
-  console.log(`Combined Quantities:`, combined);
 
   return combined;
 };
+
 
 // Helper function to format an object of quantities into a text representation
 const formatQuantities = (name, quantities) => {
@@ -202,6 +241,7 @@ const formatQuantities = (name, quantities) => {
   if (quantities.grams) parts.push(`${quantities.grams.toFixed(1)} g`);
   if (quantities.cups) parts.push(`${quantities.cups.toFixed(1)} cups`);
   if (quantities.tablespoons) parts.push(`${quantities.tablespoons.toFixed(1)} tbsp`);
+  if (quantities.pieces) parts.push(`${quantities.pieces.toFixed(1)} pieces`); // Include pieces in output
 
   console.log(`Formatted Quantities for ${name}:`, parts.join(', '));
 

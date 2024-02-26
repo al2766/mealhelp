@@ -453,19 +453,36 @@ export default function AddRecipe() {
 
   
   const handleIngredientSelection = (ingredientName) => {
-    // Update the specific ingredient in the list with the selected name
-    setIngredients((currentIngredients) =>
-      currentIngredients.map((ingredient, index) => {
-        if (index === currentIngredientIndex) {
-          return { ...ingredient, name: ingredientName };
+    // Find the ingredient info from masterIngredients
+    const selectedIngredientInfo = masterIngredients.find(ingredient => ingredient.name === ingredientName);
+  
+    // Update the ingredients state
+    setIngredients(currentIngredients => 
+      currentIngredients.map((ingredient, idx) => {
+        if (idx === currentIngredientIndex) {
+          // Determine available units
+          let availableUnits = ['g', 'cups', 'tbsp'];
+          if (selectedIngredientInfo.conversion_info?.each_to_g) {
+            availableUnits.push('pieces'); // Add 'pieces' if applicable
+          }
+  
+          return {
+            ...ingredient,
+            name: ingredientName,
+            // Ensure existing unit is valid; if not, reset it
+            unit: availableUnits.includes(ingredient.unit) ? ingredient.unit : '',
+            availableUnits // Store available units for this ingredient
+          };
         }
         return ingredient;
       })
     );
   
-    // Close the modal
+    // Close the modal after selection
     setShowIngredientModal(false);
   };
+  
+  
 
    
  
@@ -618,6 +635,8 @@ export default function AddRecipe() {
         type="text"
         value={ingredient.name}
         className="bg-transparent w-[0.1rem] h-[0.1rem] ml-[8rem] mt-9 absolute "
+        onChange={() => {}} // No-op function for onChange
+        readOnly
         required
       />
       <button
@@ -641,20 +660,18 @@ export default function AddRecipe() {
         className="text-black p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-200 w-full sm:flex-grow sm:ml-2"
         required
       />
-      <select
-        name="unit"
-        value={ingredient.unit}
-        onChange={(e) => handleIngredientChange(index, e)}
-        className="text-black p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-200 w-full sm:flex-grow sm:ml-2"
-        required
-      >
-        <option value="">Unit</option>
-        <option value="g">grams</option>
-        <option value="pieces">pieces</option>
-        <option value="cups">cups</option>
-        <option value="tbsp">tablespoons</option>
-        {/* ...other units */}
-      </select>
+  <select
+    name="unit"
+    value={ingredient.unit}
+    onChange={(e) => handleIngredientChange(index, e)}
+    className="text-black p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-200 w-full sm:flex-grow sm:ml-2"
+    required
+  >
+    <option value="">Unit</option>
+    {ingredient.availableUnits?.map(unit => (
+      <option key={unit} value={unit}>{unit}</option>
+    ))}
+  </select>
       </div>
     </div>
   ))}
