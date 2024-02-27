@@ -4,6 +4,7 @@ import placeholderImg from "../assets/images/placeholderImg.png";
 import { AiOutlineMinus, AiOutlinePlus } from "react-icons/ai"; // Import icons for the counter
 
 
+
 function Shopping() {
   const [currentUser, setCurrentUser] = useState(null);
   const [recipes, setRecipes] = useState({});
@@ -372,45 +373,57 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
   
 
   return (
-    <div className="pt-32 pb-8 min-h-screen bg-white-100">
+    <div className="text-[#616161] pt-32 pb-8 min-h-screen bg-gray-50">
       <h1 className="text-4xl font-bold text-teal-600 mb-14 text-center">Shopping</h1>
       {currentUser ? (
         <div className="container mx-auto px-4">
-          <div className=" p-4 rounded-lg mb-14">
-            <h2 className="text-2xl font-bold mb-4  border-b-2 border-black-200">Shopping List</h2>
-            {Object.values(recipes).some(recipe => recipe.count > 0) ? (
-              <>
-<ul className="list-none">
-  {shoppingList.map((item, index) => (
-    <li key={index} className="animate-fade-in flex gap-3 items-center p-2 mb-1">
-      {item}
-    </li>
-  ))}
+          <div className="md:flex flex-row-reverse justify-between p-4">
+    <div className="md:mx-10 w-full md:w-[25em] flex flex-col md:flex-row md:space-x-4">
+  <div className="flex-1">
+    <div className="p-4 bg-white rounded-lg shadow-lg">
+    {
+  Object.values(recipes).some(recipe => recipe.count > 0) ? (
+    <h4 className="text-teal-700 text-lg font-semibold mb-4 border-b-2 border-black-200">
+      Selected Recipes
+    </h4>
+  ) : null
+}
+      <div className="flex-grow">
+      <ul className="list-none pl-0 mb-4">
+  {Object.entries(recipes).map(([recipeId, recipe]) =>
+    recipe.count > 0 && (
+      <li key={recipeId} className="rounded animate-fade-in p-2 mb-2">
+    {`x${recipe.count} ${recipe.title}`}
+      </li>
+    )
+  )}
 </ul>
 
+        <h2 className="text-2xl text-teal-700 font-bold mb-4 border-b-2 border-black-200">Shopping List</h2>
+        {Object.values(recipes).some(recipe => recipe.count > 0) ? (
+          <ul className="list-none">
+            {shoppingList.map((item, index) => (
+              <li key={index} className="animate-fade-in flex gap-3 items-center p-2 mb-1">
+                {item}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div>Please select some recipes.</div>
+        )}
+      </div>
+    </div>
+  </div>
+</div>
 
 
-                <div className="mt-4">
-                  <h3 className="text-xl font-semibold mb-4 border-b-2 border-black-200">Selected Recipes</h3>
-                  <ul className="list-none pl-0">
-                    {Object.entries(recipes).map(([recipeId, recipe]) =>
-                      recipe.count > 0 && (
-                        <li key={recipeId} className={`rounded text-center text-white animate-fade-in p-2 mb-2 bg-[#58acbb]`}>{recipe.title}</li>
-                      )
-                    )}
-                  </ul>
-                </div>
-              </>
-            ) : (
-              <div className=" text-teal-700">Please select some recipes.</div>
-            )}
-          </div>
+
   
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-8">
-  {Object.entries(recipes).map(([recipeId, recipe], index) => (
+
+  <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8 py-5 md:p-4 md:bg-white rounded-lg md:shadow-lg">  {Object.entries(recipes).map(([recipeId, recipe], index) => (
     <div key={recipeId} 
          className={`relative flex flex-col justify-between p-0 rounded-lg shadow-md transition-opacity duration-300 ease-in-out ${recipe.count > 0 ? 'bg-[#58acbb] opacity-100' : 'bg-white opacity-70 hover:opacity-100'}`}>
-      <img src={recipe.imageUrl || placeholderImg} alt={recipe.title} className="w-full h-[9rem] object-cover" />
+      <img src={recipe.imageUrl || placeholderImg} alt={recipe.title} className="w-full h-[7rem] md:h-[10em] object-cover" />
       <div className="px-3 py-[0.4rem] py-0 flex-grow">
         <h2 className={`${recipe.count > 0 ? 'text-white' : 'text-green-800'} text-lg font-semibold mb-2`}>
           {recipe.title}
@@ -433,6 +446,7 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
       </div>
     </div>
   ))}
+</div>
 </div>
 </div>
 
