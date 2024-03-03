@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { signUpNewUser, signInWithEmail, signInWithMagicLink, signOut } from "../supabaseAuth";
 import { v4 as uuidv4 } from "uuid"; // Make sure to import uuid
+import Modal from '../components/Modal'; // Adjust the import path according to your file structure
+
 
 export default function AddRecipe() {
   const [masterIngredients, setMasterIngredients] = useState([]);
@@ -39,6 +41,24 @@ export default function AddRecipe() {
   const [searchQuery, setSearchQuery] = useState("");
   const [startFadeOut, setStartFadeOut] = useState(false);
 
+  const [showNewIngredientModal, setShowNewIngredientModal] = useState(false);
+  const [newIngredientDetails, setNewIngredientDetails] = useState({
+    name: '',
+    nutrient_info: {
+      fat: '',
+      carbs: '',
+      protein: '',
+      calories: '',
+    },
+    conversion_info: {
+      cup_to_g: '',
+      each_to_g: '',
+      tbsp_to_g: '',
+    },
+  });
+  
+
+
 
   const renderEmailVerificationMessage = () => {
     if (showEmailVerificationMessage) {
@@ -59,6 +79,12 @@ export default function AddRecipe() {
     }
     return null;
   };
+
+  // Function to close the New Ingredient Modal
+const closeNewIngredientModal = () => setShowNewIngredientModal(false);
+
+// Function to close the Ingredient Selection Modal
+const closeIngredientModal = () => setShowIngredientModal(false);
 
 
   // Modify the click handler for closing the modal
@@ -420,35 +446,78 @@ export default function AddRecipe() {
       console.error("An error occurred:", error);
     }
   };
-
   const handleAddIngredient = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    // Get the current user
-    const user = session?.user;
-
-    // Check if the user is logged in
-    if (user) {
+    const { data: { session } } = await supabase.auth.getSession();
+  
+    if (session?.user) {
+      const ingredientNameCapitalized = newIngredientDetails.name.replace(/\b\w/g, c => c.toUpperCase());
+  
       try {
-        // Insert the new ingredient into the 'user_ingredients' table
-        const { data, error } = await supabase
-          .from("user_ingredients")
-          .insert([{ user_id: user.id, ingredient_name: newIngredient }]);
-
-        // Check for errors
-        if (error) throw error;
-
-        // Update the state
-        setUserIngredients([...userIngredients, newIngredient]);
-        setNewIngredient("");
-        setAddingNewIngredient(false);
+        const { data: existingIngredients, error: existingError } = await supabase
+          .from("ingredients_master")
+          .select("name")
+          .eq("name", ingredientNameCapitalized);
+  
+        if (existingError) throw existingError;
+  
+        if (existingIngredients.length === 0) {
+          // Proceed to add the ingredient
+          // Convert nutrient and conversion info
+          let nutrientInfo = {};
+          let conversionInfo = {};
+  
+          for (const key of Object.keys(newIngredientDetails.nutrient_info)) {
+            nutrientInfo[key] = parseFloat(newIngredientDetails.nutrient_info[key]);
+          }
+          for (const key of Object.keys(newIngredientDetails.conversion_info)) {
+            conversionInfo[key] = parseFloat(newIngredientDetails.conversion_info[key]);
+          }
+  
+          const { error } = await supabase
+            .from("ingredients_master")
+            .insert([{
+              user_id: session.user.id,
+              name: ingredientNameCapitalized,
+              nutrient_info: nutrientInfo,
+              conversion_info: conversionInfo,
+            }]);
+  
+          if (error) throw error;
+  
+          // Clear the input fields
+          setNewIngredientDetails({
+            name: '',
+            nutrient_info: {
+              fat: '',
+              carbs: '',
+              protein: '',
+              calories: '',
+            },
+            conversion_info: {
+              cup_to_g: '',
+              each_to_g: '',
+              tbsp_to_g: '',
+            },
+          });
+          setShowNewIngredientModal(false);
+          alert("Ingredient added successfully.");
+        } else {
+          alert("Ingredient already exists.");
+        }
       } catch (error) {
         console.error("Error adding new ingredient:", error);
+        alert("Failed to add ingredient.");
       }
+    } else {
+      alert("You must be logged in to add ingredients.");
     }
   };
+  
+  
+  
+  
+  
+  
 
 
   
@@ -587,8 +656,28 @@ export default function AddRecipe() {
               
           </div>
         ) : (
+
+          
           <div className=" rounded-lg">
-            <form onSubmit={handleSubmit} className="space-y-6">
+<div className="flex justify-between items-center border-b-2 py-4">
+  <button
+    type="button"
+    onClick={() => setShowNewIngredientModal(true)}
+    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-700 transition duration-300"
+  >
+    Add New Ingredient
+  </button>
+  
+  <button
+    type="button"
+    onClick={handleSignOut}
+    className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-700 transition duration-300"
+  >
+    Sign Out
+  </button>
+</div>
+
+            <form onSubmit={handleSubmit} className="mt-4 space-y-6">
               <div className="flex flex-col">
                 <div className="shadow-md shadow-md bg-[#58acbb] p-4 mb-8 rounded-lg">
                   <h3 className="text-xl font-semibold text-white mb-4">
@@ -686,6 +775,7 @@ export default function AddRecipe() {
                     Next Ingredient
                   </button>
                 </div>
+  
 
                 <div className="text-white shadow-md bg-[#58acbb] p-4 rounded-lg">
                   <h3 className="text-xl font-semibold  mb-4">Instructions</h3>
@@ -725,88 +815,129 @@ export default function AddRecipe() {
                 Add Recipe
               </button>
             </form>
-            {showIngredientModal && (
-              <div
-                className={`${
-                  startFadeOut ? "animate-fade-out" : "animate-fade-in"
-                } fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex justify-center items-center z-50`}
-              >
-                <div className="relative bg-white p-6 rounded-lg shadow-lg flex flex-col items-center z-50">
-                  <button
-                    onClick={handleCloseModal}
-                    className="absolute top-0 m-0 right-0 rounded-full p-1"
-                    title="Close"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-7 w-7 text-black"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path d="M6.293 6.293a1 1 0 011.414 0L10 8.586l2.293-2.293a1 1 0 111.414 1.414L11.414 10l2.293 2.293a1 1 0 01-1.414 1.414L10 11.414l-2.293 2.293a1 1 0 01-1.414-1.414L8.586 10 6.293 7.707a1 1 0 010-1.414z" />
-                    </svg>
-                  </button>
-                  <h3>Choose an existing ingredient or add it</h3>
+            {showNewIngredientModal && (
+      <Modal showModal={showNewIngredientModal} setShowModal={setShowNewIngredientModal}>
 
-                  {/* Add the search input here */}
-                  <input
-                    type="text"
-                    placeholder="Search Ingredients"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="mt-7 border border-gray-300 p-2 rounded w-full mb-5"
-                  />
+      <h2 className="text-xl font-semibold mb-4">Add New Ingredient</h2>
+      
+      {/* Ingredient Name */}
+      <input 
+        type="text" 
+        placeholder="Ingredient Name"
+        required
+        value={newIngredientDetails.name}
+        onChange={(e) => setNewIngredientDetails(prev => ({...prev, name: e.target.value}))}
+        className="w-full mb-4"
+      />
 
-                  <div className="overflow-y-scroll lg:max-h-[20rem] lg:max-w-[40rem] w-[55vw] h-[40vw]">
-                    <ul className="grid grid-cols-2 lg:grid-cols-3 text-center list-none p-0">
-                    {masterIngredients
-  .filter((ingredientObj) =>
-    ingredientObj.name.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-  .map((ingredientObj, index) => (
-    <li key={index} className="text-lg mb-1">
-      <button
-        onClick={() => handleIngredientSelection(ingredientObj.name)}
-        className="bg-white shadow-md text-black px-4 py-2 rounded hover:bg-gray-100"
-      >
-        {ingredientObj.name}
-      </button>
-    </li>
-  ))}
+      {/* Nutrient Info */}
+      <h3 className="text-lg font-semibold mb-2">Nutrient Info (per 100g)</h3>
+      {Object.keys(newIngredientDetails.nutrient_info).map((key) => (
+        <input 
+          key={key}
+          type="number" 
+          placeholder={`${key.charAt(0).toUpperCase() + key.slice(1)} (g)`}
+          value={newIngredientDetails.nutrient_info[key]}
+          onChange={(e) => setNewIngredientDetails(prev => ({
+            ...prev, 
+            nutrient_info: {...prev.nutrient_info, [key]: e.target.value}
+          }))}
+          className="w-full mb-2"
+        />
+      ))}
 
-                    </ul>
-                  </div>
-                  <button
-                    onClick={() => setAddingNewIngredient(true)}
-                    className="mt-10 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-700"
-                    required
-                  >
-                    Add New Ingredient
-                  </button>
-                  {addingNewIngredient && (
-                    <div
-                      className={`${
-                        startFadeOut ? "animate-fade-out" : "animate-fade-in"
-                      } flex align-center justify-center gap-2 mt-4`}
-                    >
-                      <input
-                        type="text"
-                        value={newIngredient}
-                        onChange={(e) => setNewIngredient(e.target.value)}
-                        placeholder="New ingredient name"
-                        className="border border-gray-300 p-2 rounded w-full"
-                      />
-                      <button
-                        onClick={handleAddIngredient}
-                        className="mt-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-700"
-                      >
-                        Add
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+      {/* Conversion Info */}
+      <h3 className="text-lg font-semibold mb-2">Conversion Info</h3>
+      {Object.keys(newIngredientDetails.conversion_info).map((key) => {
+  let placeholderText = '';
+  
+  switch (key) {
+    case 'cup_to_g':
+      placeholderText = 'Grams in 1 cup';
+      break;
+    case 'tbsp_to_g':
+      placeholderText = 'Grams in 1 tbsp';
+      break;
+    case 'each_to_g':
+      placeholderText = 'Grams in 1 piece';
+      break;
+    default:
+      placeholderText = key.replace(/_/g, ' ').toUpperCase();
+  }
+  
+  return (
+    <input 
+      key={key}
+      type="number" 
+      placeholder={placeholderText}
+      value={newIngredientDetails.conversion_info[key]}
+      onChange={(e) => setNewIngredientDetails(prev => ({
+        ...prev, 
+        conversion_info: {...prev.conversion_info, [key]: e.target.value}
+      }))}
+      className="w-full mb-2"
+    />
+  );
+})}
+
+
+      {/* Add Ingredient Button */}
+      <div className="flex justify-end mt-4">
+        <button 
+   
+          onClick={handleAddIngredient} 
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-700"
+        >
+          Add Ingredient
+        </button>
+      </div>
+    
+    </Modal>
+
+)}
+
+
+{showIngredientModal && (
+  <Modal showModal={showIngredientModal} setShowModal={setShowIngredientModal}>
+    <div className="relative max-w-xl mx-auto">
+      {/* Modal header */}
+      <div className="flex justify-between items-center border-b-2 border-gray-200 mb-4">
+        <h3 className="text-xl font-bold text-gray-700 py-2">Choose an ingredient</h3>
+       
+      </div>
+
+      {/* Search input */}
+      <input
+        type="text"
+        placeholder="Search Ingredients"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        className="w-full px-4 py-2 border border-gray-300 rounded-md mb-4"
+      />
+
+      {/* Ingredients list */}
+      <div className="grid grid-cols-3 gap-4 overflow-y-auto max-h-64">
+        {masterIngredients
+          .filter((ingredientObj) =>
+            ingredientObj.name.toLowerCase().includes(searchQuery.toLowerCase())
+          )
+          .map((ingredientObj, index) => (
+            <button
+              key={index}
+              onClick={() => handleIngredientSelection(ingredientObj.name)}
+              className="flex items-center justify-center bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded shadow-sm text-sm transition duration-150"
+            >
+              {ingredientObj.name}
+            </button>
+          ))
+        }
+      </div>
+
+    
+    </div>
+  </Modal>
+)}
+
 
             {showSuccessModal && (
               <div
@@ -823,12 +954,7 @@ export default function AddRecipe() {
               </div>
             )}
             
-            <button
-        className="mt-20 w-1/3 bg-red-500 mt-10 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
-        onClick={handleSignOut}
-      >
-        Sign Out
-      </button>
+         
           </div>
         )}{" "}
       </div>{" "}

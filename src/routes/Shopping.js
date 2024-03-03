@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import placeholderImg from "../assets/images/placeholderImg.png";
 import { AiOutlineMinus, AiOutlinePlus } from "react-icons/ai"; // Import icons for the counter
+import { ArrowPathIcon } from '@heroicons/react/24/outline'; // Example for v2 using an arrow path icon
+
 
 
 
@@ -12,8 +14,54 @@ function Shopping() {
 
   const [masterIngredients, setMasterIngredients] = useState([]);
 
-  // ... other useEffect hooks
+  const [currentUnitIndex, setCurrentUnitIndex] = useState({});
 
+  // Function to cycle through available units for an ingredient
+  const cycleUnit = (ingredientName, availableUnits) => {
+    const currentIndex = currentUnitIndex[ingredientName] || 0;
+    const nextIndex = (currentIndex + 1) % availableUnits.length;
+    setCurrentUnitIndex(prevIndices => ({
+      ...prevIndices,
+      [ingredientName]: nextIndex,
+    }));
+  };
+
+
+
+
+
+  const parseQuantityString = (quantityString) => {
+    // Define an object to hold the parsed quantities
+    const parsedQuantities = {
+      name: "",
+      grams: "0 g",
+      cups: "0 cups",
+      tablespoons: "0 tbsp",
+      pieces: "0 pieces",
+    };
+  
+    // Extract the name
+    const nameMatch = quantityString.match(/^(.*?):/);
+    if (nameMatch) {
+      parsedQuantities.name = nameMatch[1];
+    }
+  
+    // Use regex to find all numbers followed by a space and any word character (unit)
+    const quantityMatches = quantityString.match(/(\d+(\.\d+)?)( g| cups| tbsp| pieces)/g);
+  
+    if (quantityMatches) {
+      quantityMatches.forEach((match) => {
+        if (match.includes("g")) parsedQuantities.grams = match;
+        else if (match.includes("cups")) parsedQuantities.cups = match;
+        else if (match.includes("tbsp")) parsedQuantities.tablespoons = match;
+        else if (match.includes("pieces")) parsedQuantities.pieces = match;
+      });
+    }
+  
+    return parsedQuantities;
+  };
+  
+  
   useEffect(() => {
     const fetchMasterIngredients = async () => {
       try {
@@ -372,6 +420,8 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
   };
   
 
+  
+
   return (
     <div className="text-[#616161] pt-32 pb-8 min-h-screen bg-gray-50">
       <h1 className="text-4xl font-bold text-teal-600 mb-14 text-center">Shopping</h1>
@@ -391,22 +441,54 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
       <div className="flex-grow">
       <ul className="list-none pl-0 mb-4">
   {Object.entries(recipes).map(([recipeId, recipe]) =>
-    recipe.count > 0 && (
-      <li key={recipeId} className="rounded animate-fade-in p-2 mb-2">
-    {`x${recipe.count} ${recipe.title}`}
-      </li>
-    )
+   recipe.count > 0 && (
+    <li key={recipeId} className="rounded animate-fade-in p-2 mb-2 flex items-center gap-2 bg-gray-100">
+      <span className="bg-gray-500 text-white py-1 px-2 rounded">
+        x{recipe.count}
+      </span>
+      <span className="font-bold">
+        {recipe.title}
+      </span>
+    </li>
+  )
+  
   )}
 </ul>
 
         <h2 className="text-2xl text-teal-700 font-bold mb-4 border-b-2 border-black-200">Shopping List</h2>
         {Object.values(recipes).some(recipe => recipe.count > 0) ? (
           <ul className="list-none">
-            {shoppingList.map((item, index) => (
-              <li key={index} className="animate-fade-in flex gap-3 items-center p-2 mb-1">
-                {item}
-              </li>
-            ))}
+    {shoppingList.map((itemString, index) => {
+  const { name, grams, cups, tablespoons, pieces } = parseQuantityString(itemString);
+  // Filter available units based on their existence and value
+  const availableUnits = [
+    { unit: 'grams', value: grams },
+    { unit: 'cups', value: cups },
+    { unit: 'tablespoons', value: tablespoons },
+  ].concat(pieces && pieces !== "0 pieces" ? [{ unit: 'pieces', value: pieces }] : [])
+   .map(item => item.unit);
+
+  const currentIndex = currentUnitIndex[name] || 0;
+  const currentUnit = availableUnits[currentIndex];
+  const unitValue = { grams, cups, tablespoons, pieces }[currentUnit];
+  const nextUnit = availableUnits[(currentIndex + 1) % availableUnits.length];
+
+  return (
+    <li key={index} className="animate-fade-in flex justify-between gap-3 items-center p-2 mb-1 bg-gray-100 rounded">
+      <span className="font-bold">{name}: {unitValue}</span>
+      <button 
+        onClick={() => cycleUnit(name, availableUnits)}
+        className="py-1 px-2 rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors flex items-center gap-2"
+      >
+        <ArrowPathIcon className="h-5 w-5" aria-hidden="true" />
+        {nextUnit.charAt(0).toUpperCase() + nextUnit.slice(1)}
+      </button>
+    </li>
+  );
+})}
+
+
+    
           </ul>
         ) : (
           <div>Please select some recipes.</div>
@@ -420,7 +502,7 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
 
   
 
-  <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8 py-5 md:p-4 md:bg-white rounded-lg md:shadow-lg">  {Object.entries(recipes).map(([recipeId, recipe], index) => (
+  <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8 py-5 md:p-4 bg-gray-50 rounded-lg md:shadow-lg">  {Object.entries(recipes).map(([recipeId, recipe], index) => (
     <div key={recipeId} 
          className={`relative flex flex-col justify-between p-0 rounded-lg shadow-md transition-opacity duration-300 ease-in-out ${recipe.count > 0 ? 'bg-[#58acbb] opacity-100' : 'bg-white opacity-70 hover:opacity-100'}`}>
       <img src={recipe.imageUrl || placeholderImg} alt={recipe.title} className="w-full h-[7rem] md:h-[10em] object-cover" />

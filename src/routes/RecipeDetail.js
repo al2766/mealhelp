@@ -5,6 +5,9 @@ import { MdCheckCircle, MdEdit, MdSave } from "react-icons/md"; // Importing ico
 import { v4 as uuidv4 } from "uuid"; // Make sure to import uuid
 import { useNavigate } from "react-router-dom";
 import placeholderImg from "../assets/images/placeholderImg.png";
+import { ArrowPathIcon } from '@heroicons/react/24/outline'; // Example for v2 using an arrow path icon
+import Modal from '../components/Modal'; // Adjust the import path according to your file structure
+
 
 
 export default function RecipeDetail() {
@@ -12,7 +15,7 @@ export default function RecipeDetail() {
   const [recipe, setRecipe] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
-  const [editIngredients, setEditIngredients] = useState([]);
+
   const [editInstructions, setEditInstructions] = useState([]);
   const [editImage, setEditImage] = useState("");
   const [newImageFile, setNewImageFile] = useState(null);
@@ -32,10 +35,120 @@ export default function RecipeDetail() {
   const [alertMessage, setAlertMessage] = useState('');
   const [inEditMode, setInEditMode] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [editIngredients, setEditIngredients] = useState([{
+    name: "",
+    quantity: "",
+    unit: "",
+    availableUnits: [] // Initialize this as an empty array
+  }]);
+
+  const [currentUnits, setCurrentUnits] = useState({});
+  // Assuming these are the units you want to cycle through
+const unitSequence = ['g', 'cups', 'tbsp', 'pieces'];
+const switchUnit = (ingredientName) => {
+  const currentUnit = currentUnits[ingredientName] || "g"; // Default to grams if no unit is set
+  const availableUnits = ["g", "cups", "tbsp", "pieces"]; // Example unit order
+  const currentUnitIndex = availableUnits.indexOf(currentUnit);
+  const nextUnitIndex = (currentUnitIndex + 1) % availableUnits.length; // Cycle through units
+  setCurrentUnits(prevUnits => ({
+      ...prevUnits,
+      [ingredientName]: availableUnits[nextUnitIndex],
+  }));
+};
+const getNextUnit = (currentUnit, conversionInfo) => {
+  let units = ['g', 'cups', 'tbsp'];
+  if (conversionInfo && conversionInfo.each_to_g) {
+    units.push('pieces');
+  }
+  
+  const currentIndex = units.indexOf(currentUnit);
+  const nextIndex = (currentIndex + 1) % units.length; // Wrap around to the first unit
+  return units[nextIndex];
+};
 
   
+const convertQuantity = (originalQuantity, originalUnit, targetUnit, conversionInfo) => {
+  if (!conversionInfo || originalUnit === targetUnit) {
+      return originalQuantity;
+  }
 
-  // ... other useEffects and functions
+  let conversionFactor = 1;
+
+  switch (targetUnit) {
+      case 'g':
+          if (originalUnit === 'cups' && conversionInfo.cup_to_g) {
+              conversionFactor = conversionInfo.cup_to_g;
+          } else if (originalUnit === 'tbsp' && conversionInfo.tbsp_to_g) {
+              conversionFactor = conversionInfo.tbsp_to_g;
+          } else if (originalUnit === 'pieces' && conversionInfo.each_to_g) {
+              conversionFactor = conversionInfo.each_to_g;
+          }
+          break;
+      case 'cups':
+          if (originalUnit === 'g' && conversionInfo.cup_to_g) {
+              conversionFactor = 1 / conversionInfo.cup_to_g;
+          }
+          break;
+      case 'tbsp':
+          if (originalUnit === 'g' && conversionInfo.tbsp_to_g) {
+              conversionFactor = 1 / conversionInfo.tbsp_to_g;
+          }
+          break;
+      case 'pieces':
+          if (originalUnit === 'g' && conversionInfo.each_to_g) {
+              conversionFactor = 1 / conversionInfo.each_to_g;
+          }
+          break;
+      default:
+          console.error('Unsupported unit for conversion');
+          return originalQuantity; // Return the original quantity if the conversion cannot be performed
+  }
+
+  return (originalQuantity * conversionFactor).toFixed(1);
+};
+
+
+
+
+  
+// Example function that matches recipe ingredients with master ingredients to append conversion info
+const enrichIngredientsWithConversionInfo = (recipeIngredients, masterIngredients) => {
+    return recipeIngredients.map(recipeIngredient => {
+        // Find the matching master ingredient by name
+        const masterIngredient = masterIngredients.find(master => master.name === recipeIngredient.name);
+
+        // If found, append the conversion info to the recipe ingredient
+        if (masterIngredient) {
+            return {
+                ...recipeIngredient,
+                conversion_info: masterIngredient.conversion_info,
+            };
+        }
+
+        // If no matching master ingredient is found, return the original recipe ingredient
+        return recipeIngredient;
+    });
+};
+
+useEffect(() => {
+  if (recipe && userIngredients.length > 0) {
+      // Perform enrichment only if necessary. This condition should be adjusted to fit your logic.
+      // For example, you might check if enrichment has already been done to avoid doing it again.
+      if (!recipe.ingredientsEnriched) { // Assume this is a flag you set when enrichment is done
+          const enrichedIngredients = enrichIngredientsWithConversionInfo(recipe.ingredients, userIngredients);
+          
+          // Update your state with enriched ingredients
+          setRecipe({
+              ...recipe,
+              ingredients: enrichedIngredients,
+              ingredientsEnriched: true, // Set a flag to indicate enrichment is done
+          });
+      }
+  }
+  // The dependencies array ensures this effect only reruns if `recipe` or `userIngredients` change.
+  // Adjust the condition inside the effect to ensure it doesn't run endlessly.
+}, [recipe, userIngredients]);
+
 
   const handleInstructionChange = (index, e) => {
     const newInstructions = editInstructions.map((instruction, i) => {
@@ -68,52 +181,51 @@ export default function RecipeDetail() {
 
 
   useEffect(() => {
-    const fetchUserIngredients = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const user = session?.user;
+  const fetchMasterIngredients = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('ingredients_master')
+        .select('*'); // Adjust if you need specific columns
   
-        if (user) {
-          const { data, error } = await supabase
-            .from('user_ingredients')
-            .select('ingredient_name')
-            .eq('user_id', user.id);
+      if (error) throw error;
   
-          if (error) {
-            throw error;
-          }
-  
-          const userIngredients = data.map(item => item.ingredient_name);
-  
-          // Log fetched data for debugging
-          console.log('Fetched ingredients:', userIngredients);
-  
-          // Update the state with the fetched user ingredients
-          setUserIngredients(userIngredients);
-        }
-      } catch (error) {
-        console.error('Error fetching ingredients:', error);
-      }
-    };
-  
-    fetchUserIngredients();
-  }, []);
-  
-  const handleIngredientSelection = (ingredientName) => {
-    if (currentIngredientIndex >= 0 && currentIngredientIndex < editIngredients.length) {
-        const updatedIngredients = [...editIngredients];
-        updatedIngredients[currentIngredientIndex] = {
-            ...updatedIngredients[currentIngredientIndex],
-            name: ingredientName,
-        };
-        setEditIngredients(updatedIngredients);
-        setStartFadeOut(true);
-        setTimeout(() => {
-          setShowIngredientModal(false);
-          setStartFadeOut(false); // Reset fade-out state
-        }, 350); // duration of the fade-out animation
+      setUserIngredients(data); // Assuming this state holds the ingredients for selection
+    } catch (error) {
+      console.error('Error fetching master ingredients:', error);
     }
+  };
+
+  fetchMasterIngredients();
+}, []);
+
+  
+// When a new ingredient is selected, update the available units and reset the unit if necessary.
+const handleIngredientSelection = (ingredientName) => {
+  const masterIngredient = userIngredients.find(i => i.name === ingredientName);
+  const conversionInfo = masterIngredient?.conversion_info;
+  
+  if (currentIngredientIndex >= 0 && currentIngredientIndex < editIngredients.length) {
+    const newUnits = conversionInfo && conversionInfo.each_to_g
+      ? ["g", "cups", "tbsp", "pieces"]
+      : ["g", "cups", "tbsp"];
+
+    const updatedIngredients = editIngredients.map((ingredient, index) => {
+      if (index === currentIngredientIndex) {
+        return {
+          ...ingredient,
+          name: ingredientName,
+          availableUnits: newUnits,
+          unit: newUnits.includes(ingredient.unit) ? ingredient.unit : newUnits[0]
+        };
+      }
+      return ingredient;
+    });
+    
+    setEditIngredients(updatedIngredients);
+    setShowIngredientModal(false);
+  }
 };
+
 
   
   
@@ -201,9 +313,31 @@ export default function RecipeDetail() {
       setIsEditing(true);
       setIsTransitioning(false);
     }, 400); // Duration of the fade-out transition
+
+    // Clone the ingredients array and enrich it with availableUnits
+ // Enrich the ingredients with available units
+ const enrichedIngredients = recipe.ingredients.map(ing => {
+  const masterIngredient = userIngredients.find(mi => mi.name === ing.name);
+  const conversionInfo = masterIngredient?.conversion_info;
+  const availableUnits = conversionInfo && conversionInfo.each_to_g
+    ? ["g", "cups", "tbsp", "pieces"]
+    : ["g", "cups", "tbsp"];
+    
+  const unit = availableUnits.includes(ing.unit) ? ing.unit : availableUnits[0];
+  setCurrentUnits(prevUnits => ({
+    ...prevUnits,
+    [ing.name]: unit
+  }));
+
+  return {
+    ...ing,
+    availableUnits: availableUnits,
+    unit: unit // Use the updated unit
+  };
+});
   
     setEditTitle(recipe.title);
-    setEditIngredients(recipe.ingredients.map((ing) => ({ ...ing }))); // Clone the ingredients array
+    setEditIngredients(enrichedIngredients);
 
 
   
@@ -363,6 +497,9 @@ export default function RecipeDetail() {
 };
 
 
+
+
+
   return (
 
 
@@ -372,7 +509,7 @@ export default function RecipeDetail() {
   <div className={`transition-opacity duration-300 ease-in-out ${!isTransitioning ? 'opacity-100' : 'opacity-0'}`}>
   <form onSubmit={handleFormSubmit}> {/* Wrap in form and handle on submit */}
 
-              <div className="bg-white z-10 sticky top-[4rem] py-5 right-0 flex gap-2">
+              <div className="z-0 bg-white z-10 sticky top-[4rem] py-5 right-0 flex gap-2">
   <button
   type="submit"
   className="flex flex-row align-center justify-center items-center gap-1 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
@@ -426,6 +563,7 @@ export default function RecipeDetail() {
   <div key={index} className="mb-4">
     <div className="flex space-x-2 relative">
     <input
+    hidden
                         type="text"
                         value={ingredient.name}
                         required
@@ -437,7 +575,7 @@ export default function RecipeDetail() {
                           setCurrentIngredientIndex(index);
                           setShowIngredientModal(true);
                         }}
-                        className="sm:w-1/6 sm:flex-grow bg-white text-black px-10 py-2 rounded hover:bg-gray-200 mb-2 sm:mb-0"
+                        className="w-2/3 sm:flex-grow bg-white text-black px-10 py-2 rounded hover:bg-gray-200 mb-2 sm:mb-0"
                       >
                         {ingredient.name || "Choose Ingredient"}
                       </button>
@@ -447,19 +585,20 @@ export default function RecipeDetail() {
         value={ingredient.quantity}
         onChange={(e) => handleIngredientChange(index, 'quantity', e.target.value)}
         placeholder="Quantity"
-        className="text-black p-2 border border-gray-300 rounded w-1/5"
+        className="md:w-1/5 text-black p-2 border border-gray-300 rounded w-1/3"
         required
       />
-      <select
-        name="unit"
-        value={ingredient.unit}
-        onChange={(e) => handleIngredientChange(index, 'unit', e.target.value)}
-        className="text-black p-2 border border-gray-300 rounded w-1/5"
-        required
-      >
-        <option value="g">g</option>
-        <option value="pieces">pieces</option>
-      </select>
+    <select
+      name="unit"
+      value={ingredient.unit}
+      onChange={(e) => handleIngredientChange(index, 'unit', e.target.value)}
+      className="md:w-1/5 text-black p-2 border border-gray-300 rounded w-1/3"
+      required
+    >
+      {ingredient.availableUnits && ingredient.availableUnits.map(unit => (
+        <option key={unit} value={unit}>{unit}</option>
+      ))}
+    </select>
     </div>
   </div>
 ))}
@@ -509,77 +648,46 @@ export default function RecipeDetail() {
       </button>
     </div>
     {showIngredientModal && (
-  <div className={`${startFadeOut ? 'animate-fade-out' : 'animate-fade-in'} fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex justify-center items-center z-50`}>
-    <div className="relative bg-white p-6 rounded-lg shadow-lg flex flex-col items-center z-50">
-    <button 
-    type="button"
-        onClick={handleCloseModal}
+  <Modal showModal={showIngredientModal} setShowModal={setShowIngredientModal}>
+    <div className="relative max-w-xl mx-auto">
+      {/* Modal header */}
+      <div className="flex justify-between items-center border-b-2 border-gray-200 mb-4">
+        <h3 className="text-xl font-bold text-gray-700 py-2">Choose an ingredient</h3>
+        <button onClick={() => setShowIngredientModal(false)} className="text-gray-600 hover:text-gray-900 transition duration-150">
+          {/* SVG for close button */}
+        </button>
+      </div>
 
-  className="absolute top-0 m-0 right-0 rounded-full p-1"
-  title="Close"
->
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-black" viewBox="0 0 20 20" fill="currentColor">
-    <path d="M6.293 6.293a1 1 0 011.414 0L10 8.586l2.293-2.293a1 1 0 111.414 1.414L11.414 10l2.293 2.293a1 1 0 01-1.414 1.414L10 11.414l-2.293 2.293a1 1 0 01-1.414-1.414L8.586 10 6.293 7.707a1 1 0 010-1.414z" />
-  </svg>
-</button>
-<h3>Choose an existing ingredient or add it</h3>
-
-      {/* Add the search input here */}
+      {/* Search input */}
       <input
         type="text"
         placeholder="Search Ingredients"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
-        className="mt-7 border border-gray-300 p-2 rounded w-full mb-5"
+        className="w-full px-4 py-2 border border-gray-300 rounded-md mb-4"
       />
 
-      <div className="overflow-y-scroll lg:max-h-[20rem] lg:max-w-[40rem] w-[55vw] h-[40vw]">
-        <ul className="grid grid-cols-2 lg:grid-cols-3 text-center list-none p-0">
+      {/* Ingredients list */}
+      <div className="grid grid-cols-3 gap-4 overflow-y-auto max-h-64">
         {userIngredients
-  .filter(ingredient => ingredient.toLowerCase().includes(searchQuery.toLowerCase()))
-  .map((ingredient, index) => (
-      <li key={index} className="text-lg mb-1">
-          <button
-            type="button"
-            onClick={() => handleIngredientSelection(ingredient)}
-            className="bg-white shadow-md text-black px-4 py-2 rounded hover:bg-gray-100"
-          >
-            {ingredient}
-          </button>
-      </li>
-  ))
-}
-        </ul>
+          .filter(ingredient => ingredient.name.toLowerCase().includes(searchQuery.toLowerCase()))
+          .map((ingredient, index) => (
+            <button
+              key={index}
+              onClick={() => handleIngredientSelection(ingredient.name)}
+              className="flex items-center justify-center bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded shadow-sm text-sm transition duration-150"
+            >
+              {ingredient.name}
+            </button>
+          ))
+        }
       </div>
-      <button
-      type="button"
-        onClick={() => setAddingNewIngredient(true)}
-        className="mt-10 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-700"
-        required
-      >
-        Add New Ingredient
-      </button>
-      {addingNewIngredient && (
-        <div className={`${startFadeOut ? 'animate-fade-out' : 'animate-fade-in'} flex align-center justify-center gap-2 mt-4`}>
-          <input 
-            type="text"
-            value={newIngredient}
-            onChange={(e) => setNewIngredient(e.target.value)}
-            placeholder="New ingredient name"
-            className="border border-gray-300 p-2 rounded w-full"
-          />
-          <button
-          type="button"
-            onClick={handleAddIngredient}
-            className="mt-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-700"
-          >
-            Add
-          </button>
-        </div>
-      )}
+
+
     </div>
-  </div>
+  </Modal>
 )}
+
 </form>
   </div>
 ) : (
@@ -628,17 +736,35 @@ export default function RecipeDetail() {
           </div>
           <div className="grid md:grid-cols-2 gap-4 mb-6">
           <div className="bg-green-50 p-4 rounded-lg">
-  <h3 className="text-2xl font-semibold text-center mb-2">
-    Ingredients
-  </h3>
-  <div className="text-center grid grid-cols-2 gap-x-4 gap-y-2 max-w-4xl mx-auto">
-    {recipe.ingredients.map((ing, index) => (
-      <li key={index} className="mb-2 list-none	">
-        {`${ing.name} (${ing.quantity} ${ing.unit})`}
-      </li>
-    ))}
-  </div>
+  <h3 className="text-2xl font-semibold text-center mb-2">Ingredients</h3>
+  <ul className="max-w-4xl mx-auto">
+    {recipe.ingredients.map((ingredient, index) => {
+      const currentUnit = currentUnits[ingredient.name] || ingredient.unit;
+      const conversionInfo = userIngredients.find(i => i.name === ingredient.name)?.conversion_info;
+      const nextUnit = getNextUnit(currentUnit, conversionInfo);
+      const displayQuantity = conversionInfo
+        ? convertQuantity(ingredient.quantity, ingredient.unit, currentUnit, conversionInfo)
+        : ingredient.quantity;
+
+      return (
+        <li key={index} className="flex justify-between items-center border-b border-gray-200 py-2">
+          <span className="text-gray-700">{`${ingredient.name}: ${displayQuantity} ${currentUnit}`}</span>
+          <button
+            onClick={() => switchUnit(ingredient.name, nextUnit)}
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded inline-flex items-center gap-2 text-sm"
+            style={{ minWidth: '100px' }} // Ensures buttons have the same width
+          >
+            <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
+            {nextUnit}
+          </button>
+        </li>
+      );
+    })}
+  </ul>
 </div>
+
+
+
 
 
 
@@ -649,7 +775,7 @@ export default function RecipeDetail() {
         ? recipe.instructions.split("\n").map((step, index) => (
             <div key={index} className="flex gap-3 items-start">
               <input type="checkbox" className="mt-1" />
-              <label className="text-gray-700">{`Step ${index + 1}: ${step}`}</label>
+              <label className="text-gray-700">{ step}</label>
             </div>
           ))
         : null}
