@@ -1,19 +1,16 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { signUpNewUser, signInWithEmail, signInWithMagicLink, signOut } from "../supabaseAuth";
 import { v4 as uuidv4 } from "uuid"; // Make sure to import uuid
 import Modal from '../components/Modal'; // Adjust the import path according to your file structure
 import LoadingSpinner from '../components/LoadingSpinner'; // Adjust the import path according to your file structure
 import { toast } from 'react-toastify';
-import { MdDelete } from 'react-icons/md';
-
 
 
 
 export default function AddRecipe() {
 
   const [masterIngredients, setMasterIngredients] = useState([]);
-  const fileInputRef = useRef(null);
 
   const [instructions, setInstructions] = useState([""]);
   const [imageFile, setImageFile] = useState(null);
@@ -72,7 +69,7 @@ export default function AddRecipe() {
       return (
         <div className={`${
           startFadeOut ? "animate-fade-out" : "animate-fade-in"
-        } fixed inset-0 bg-[#58acbb] bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center`}>
+        } fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center`}>
           <div className="bg-white p-5 rounded-lg shadow-lg w-96">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Sign up Successful</h2>
             <p className="text-gray-600">Signing you in now...</p>
@@ -131,11 +128,7 @@ const closeIngredientModal = () => setShowIngredientModal(false);
     setIngredients([{ name: "", quantity: "", unit: "" }]);
     setInstructions([""]);
     setImageFile(null);
-    // Directly reset the file input
-  if (fileInputRef.current) {
-    fileInputRef.current.value = ""; // This will clear the file input visually
-  }
-
+    // After successful submission
   };
 
   const handleImageChange = async (event) => {
@@ -338,18 +331,7 @@ const closeIngredientModal = () => setShowIngredientModal(false);
     setIngredients([...ingredients, { name: "", quantity: "", unit: "" }]);
     setisIngredientSelected(false);
   };
-  const removeIngredientInput = (index) => {
-    setIngredients(currentIngredients => 
-      currentIngredients.filter((_, i) => i !== index)
-    );
-  };
-  
-  const removeInstructionInput = (index) => {
-    setInstructions(currentInstructions => 
-      currentInstructions.filter((_, i) => i !== index)
-    );
-  };
-  
+
   const handleInstructionChange = (index, e) => {
     const newInstructions = instructions.map((instruction, i) => {
       if (i === index) {
@@ -366,100 +348,91 @@ const closeIngredientModal = () => setShowIngredientModal(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-  
+
     // Check if all ingredients have a name selected
-    const allIngredientsFilled = ingredients.every((ingredient) => ingredient.name !== "");
-  
+    const allIngredientsFilled = ingredients.every(
+      (ingredient) => ingredient.name !== ""
+    );
+
     if (!allIngredientsFilled) {
-      toast.error("Please fill in all the ingredient names.");
-      return; // Prevent form submission if validation fails
+      setisIngredientSelected(false); // This will trigger the warning for unfilled fields
+      return; // Prevent form submission
     }
-  
+
     // Check if at least one ingredient has a name selected
-    const IngredientSelected = ingredients.some((ingredient) => ingredient.name !== "");
-  
+    const IngredientSelected = ingredients.some(
+      (ingredient) => ingredient.name !== ""
+    );
+
     if (!IngredientSelected) {
-      toast.error("Please select at least one ingredient.");
-      return; // Prevent form submission if validation fails
+      setisIngredientSelected(false);
+      return;
     }
-  
-    const formattedInstructions = instructions.map((instr, index) => `Step ${index + 1}: ${instr}`).join("\n");
-  
+
+    const formattedInstructions = instructions
+      .map((instr, index) => `Step ${index + 1}: ${instr}`)
+      .join("\n");
+    let imageUrl = null;
+
     setIsLoading(true);
-  
-    // Using toast.promise for async operation
-    toast.promise(
-      // Your promise function
-      async () => {
-        let imageUrl = null;
-        if (imageFile) {
-          imageUrl = await uploadImage(imageFile);
-          if (!imageUrl) {
-            throw new Error("Failed to upload image.");
-          }
-        }
-  
-        await addRecipeToSupabase(title, ingredients, formattedInstructions, imageUrl);
-      },
-      {
-        pending: 'Adding recipe...',
-        success: 'Recipe added successfully!',
-        error: 'Error adding recipe.'
-      }
-    ).then(() => {
-      // Reset form and state variables upon successful recipe addition
-      setTitle("");
-      setIngredients([{ name: "", quantity: "", unit: "" }]);
-      setInstructions([""]);
-      setImageFile(null);
-      setIsLoading(false);
-    }).catch((error) => {
-      console.error("Error adding recipe:", error);
-      setIsLoading(false);
-    });
+    if (imageFile) {
+      imageUrl = await uploadImage(imageFile);
+      console.log("Image URL:", imageUrl); // Check if imageUrl is logged correctly
+    }
+
+    await addRecipeToSupabase(
+      title,
+      ingredients,
+      formattedInstructions,
+      imageUrl
+    );
+    setIsLoading(false);
+    showToast()
   };
-  
-  
-  // Make sure to bind this function in the constructor if you are using class components
-  
-  
 
 
-  const addRecipeToSupabase = (title, ingredients, instructions, imageUrl) => {
-    return new Promise(async (resolve, reject) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const user = session?.user;
-      if (!user) {
-        reject("No user logged in");
+  const addRecipeToSupabase = async (
+    title,
+    ingredients,
+    instructions,
+    imageUrl
+  ) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
+    if (!user) {
+      console.error("No user logged in");
+      return;
+    }
+
+    const userId = user.id;
+
+    try {
+      const { data: recipeData, error: recipeError } = await supabase
+        .from("recipes")
+        .insert([
+          {
+            user_id: userId,
+            title,
+            ingredients: JSON.stringify(ingredients), // Ensure ingredients are serialized
+            instructions,
+            image_url: imageUrl, // Pass the image URL here
+          },
+        ])
+        .single();
+
+      if (recipeError) {
+        console.error("Error inserting recipe:", recipeError);
         return;
       }
-  
-      const userId = user.id;
-      try {
-        const { data: recipeData, error: recipeError } = await supabase
-          .from("recipes")
-          .insert([
-            {
-              user_id: userId,
-              title,
-              ingredients: JSON.stringify(ingredients),
-              instructions,
-              image_url: imageUrl,
-            },
-          ])
-          .single();
-  
-        if (recipeError) {
-          reject("Error inserting recipe");
-        } else {
-          resolve(recipeData);
-        }
-      } catch (error) {
-        reject("An error occurred during recipe insertion");
-      }
-    });
+
+   
+      console.log("Recipe added successfully:");
+    } catch (error) {
+      console.error("An error occurred:", error);
+    }
   };
-  
   const handleAddIngredient = async () => {
     const { data: { session } } = await supabase.auth.getSession();
   
@@ -529,7 +502,18 @@ const closeIngredientModal = () => setShowIngredientModal(false);
   
   
   
-
+  const showToast = () => {
+    toast.success('This is a success toast!', {
+      position: "top-right",
+      autoClose: 2000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      progress: undefined,
+      style: { marginTop: '80px' } // Correct object syntax
+    });
+  };
   
   
   const handleIngredientSelection = (ingredientName) => {
@@ -627,9 +611,9 @@ const closeIngredientModal = () => setShowIngredientModal(false);
     />
   </div>
 )}
-              <div className="flex gap-2 items-center justify-between">
+              <div className="flex items-center justify-between">
                 <button
-                  className="bg-[#58acbb] transition duration-300 hover:bg-[#3e7983] text-white font-bold py-2 px-4 rounded"
+                  className="bg-blue-500 hover:bg-blue-dark text-white font-bold py-2 px-4 rounded"
                   type="button"
                   onClick={isSigningUp ? handleSignUp : handleSignInWithEmail}
                 >
@@ -649,13 +633,13 @@ const closeIngredientModal = () => setShowIngredientModal(false);
             {authError && (
               <p className="text-red-500 text-xs italic">{authError}</p>
             )}
-{/* 
+
 <button
-            className="bg-[#58acbb] transition duration-300 hover:bg-[#3e7983] text-gray-600 font-bold py-2 px-4 rounded"
+            className="bg-blue-500 hover:bg-blue-dark text-white font-bold py-2 px-4 rounded"
             onClick={handleSignInWithMagicLink}
           >
             Sign In with Magic Link
-          </button> */}
+          </button>
           {/* ... remaining form elements */}
           {renderEmailVerificationMessage()}
         
@@ -674,7 +658,7 @@ const closeIngredientModal = () => setShowIngredientModal(false);
   <button
     type="button"
     onClick={() => setShowNewIngredientModal(true)}
-    className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983] transition duration-300"
+    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-700 transition duration-300"
   >
     Add New Ingredient
   </button>
@@ -682,7 +666,7 @@ const closeIngredientModal = () => setShowIngredientModal(false);
   <button
     type="button"
     onClick={handleSignOut}
-    className="bg-red-500 text-white px-4 py-2 rounded transition duration-300 hover:bg-red-700 transition duration-300"
+    className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-700 transition duration-300"
   >
     Sign Out
   </button>
@@ -690,8 +674,8 @@ const closeIngredientModal = () => setShowIngredientModal(false);
 
             <form onSubmit={handleSubmit} className="mt-4 space-y-6">
               <div className="flex flex-col">
-                <div className="shadow-md shadow-md bg-white p-4 mb-8 rounded-lg">
-                  <h3 className="text-xl font-semibold text-gray-600 mb-4">
+                <div className="shadow-md shadow-md bg-[#58acbb] p-4 mb-8 rounded-lg">
+                  <h3 className="text-xl font-semibold text-white mb-4">
                     Recipe Title
                   </h3>
 
@@ -706,7 +690,7 @@ const closeIngredientModal = () => setShowIngredientModal(false);
                   />
                 </div>
 
-                <div className="text-gray-600 shadow-md bg-white p-4 mb-8 rounded-lg">
+                <div className="text-white shadow-md bg-[#58acbb] p-4 mb-8 rounded-lg">
                   <h3 className="text-xl font-semibold">Recipe Image</h3>
                   <span className="text-sm">
                     (leave blank for default image)
@@ -717,20 +701,19 @@ const closeIngredientModal = () => setShowIngredientModal(false);
                       type="file"
                       onChange={handleImageChange}
                       accept="image/*"
-                      ref={fileInputRef} // Add this line
-                      className="text-sm mt-8 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100"
+                      className="text-sm mt-8 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
                   </div>
                 </div>
 
-                <div className="text-gray-600 shadow-md bg-white p-4 mb-8 rounded-lg">
+                <div className="text-white shadow-md bg-[#58acbb] p-4 mb-8 rounded-lg">
                   <h3 className="text-xl font-semibold  mb-4">Ingredients</h3>
     
   {ingredients.map((ingredient, index) => (
     <div 
     key={index}   
-className={`relative flex md:flex-row flex-col sm:items-center mb-4 ${index !== 0 ? "animate-fade-in" : ""}`}>
-    
+    className="relative flex flex-col sm:flex-row sm:items-center mb-4"
+    >
 
       <input
         type="text"
@@ -746,7 +729,7 @@ className={`relative flex md:flex-row flex-col sm:items-center mb-4 ${index !== 
          setCurrentIngredientIndex(index);
          setShowIngredientModal(true);
         }}
-        className="border border-gray-300 sm:w-1/6 sm:flex-grow bg-white text-gray-400 px-10 py-2 rounded transition duration-300 hover:bg-gray-200 mb-2 sm:mb-0"
+        className="sm:w-1/6 sm:flex-grow bg-white text-black px-10 py-2 rounded hover:bg-gray-200 mb-2 sm:mb-0"
         >
  {ingredient.name || "Choose Ingredient"}     
   </button>
@@ -758,14 +741,14 @@ className={`relative flex md:flex-row flex-col sm:items-center mb-4 ${index !== 
         value={ingredient.quantity}
         onChange={(e) => handleIngredientChange(index, e)}
         placeholder="Quantity"
-        className="text-gray-600 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-200 w-full sm:flex-grow sm:ml-2"
+        className="text-black p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-200 w-full sm:flex-grow sm:ml-2"
         required
       />
   <select
     name="unit"
     value={ingredient.unit}
     onChange={(e) => handleIngredientChange(index, e)}
-    className="text-gray-400 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-200 w-full sm:flex-grow sm:ml-2"
+    className="text-black p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-200 w-full sm:flex-grow sm:ml-2"
     required
   >
     <option value="">Unit</option>
@@ -773,19 +756,7 @@ className={`relative flex md:flex-row flex-col sm:items-center mb-4 ${index !== 
       <option key={unit} value={unit}>{unit}</option>
     ))}
   </select>
-
       </div>
-      {index > 0 && (
-      <button
-        type="button"
-        onClick={() => removeIngredientInput(index)}
-        className="flex items-center justify-center bg-gray-400 transition duration-300 hover:bg-gray-700 text-white font-bold p-2 rounded"
-        aria-label="Remove ingredient"
-      >
-          <MdDelete /> Remove
-
-      </button>
-  )}
     </div>
   ))}
 
@@ -794,18 +765,18 @@ className={`relative flex md:flex-row flex-col sm:items-center mb-4 ${index !== 
                   <button
                     type="button"
                     onClick={addIngredientInput}
-                    className="mt-2 bg-[#58acbb] transition duration-300 hover:bg-[#3e7983] text-white font-bold py-2 px-4 rounded"
+                    className="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
                   >
                     Next Ingredient
                   </button>
                 </div>
   
 
-                <div className="text-gray-600 shadow-md bg-white p-4 rounded-lg">
+                <div className="text-white shadow-md bg-[#58acbb] p-4 rounded-lg">
                   <h3 className="text-xl font-semibold  mb-4">Instructions</h3>
                    {instructions.map((instruction, index) => (
-  <div key={index} className={`relative mb-2 ${index !== 0 ? "animate-fade-in" : ""}`}>
-  <label
+                    <div key={index} className="mb-2">
+                      <label
                         className="block text-grey-darker text-sm font-bold mb-2"
                         htmlFor={`instruction-${index}`}
                       >
@@ -817,26 +788,15 @@ className={`relative flex md:flex-row flex-col sm:items-center mb-4 ${index !== 
                         value={instruction}
                         onChange={(e) => handleInstructionChange(index, e)}
                         placeholder={`Instruction for step ${index + 1}`}
-                        className="text-gray-600 w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200"
+                        className="text-black w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200"
                         required
                       />
-               {index > 0 && (
-      <button
-        type="button"
-        onClick={() => removeInstructionInput(index)}
-        className="flex justify-center items-center gap-3 w-full bg-gray-400 transition duration-300 hover:bg-gray-700 text-white font-bold p-2 rounded"
-        aria-label="Remove instruction"
-      >
-          <MdDelete /> Remove
-
-      </button>
-    )}
                     </div>
                   ))}
                   <button
                     type="button"
                     onClick={addInstructionInput}
-                    className="mt-2 bg-[#58acbb] transition duration-300 hover:bg-[#3e7983] text-white font-bold py-2 px-4 rounded"
+                    className="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
                   >
                     Next Instruction
                   </button>
@@ -844,8 +804,9 @@ className={`relative flex md:flex-row flex-col sm:items-center mb-4 ${index !== 
               </div>
 
               <button
-                type="submit"
-                className="w-full bg-[#58acbb] transition duration-300 hover:bg-[#3e7983] text-white font-bold py-2 px-4 rounded"
+                type="button"
+                onClick={showToast}
+                className="w-full bg-blue-500 hover:bg-blue-dark text-white font-bold py-2 px-4 rounded"
               >
                 Add Recipe
               </button>
@@ -921,7 +882,7 @@ className={`relative flex md:flex-row flex-col sm:items-center mb-4 ${index !== 
         <button 
    
           onClick={handleAddIngredient} 
-          className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983]"
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-700"
         >
           Add Ingredient
         </button>
@@ -960,7 +921,7 @@ className={`relative flex md:flex-row flex-col sm:items-center mb-4 ${index !== 
             <button
               key={index}
               onClick={() => handleIngredientSelection(ingredientObj.name)}
-              className="flex items-center justify-center bg-white border border-gray-200 text-gray-700 transition duration-300 hover:bg-gray-50 px-3 py-2 rounded shadow-sm text-sm transition duration-150"
+              className="flex items-center justify-center bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded shadow-sm text-sm transition duration-150"
             >
               {ingredientObj.name}
             </button>
@@ -975,6 +936,11 @@ className={`relative flex md:flex-row flex-col sm:items-center mb-4 ${index !== 
 
 
 
+{isLoading && (
+  <div className="fixed inset-0 bg-gray-500 bg-opacity-50 z-50 flex justify-center items-center">
+    <LoadingSpinner />
+  </div>
+)}
 
          
           </div>

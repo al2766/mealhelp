@@ -12,7 +12,7 @@ module.exports = {
         fadeIn: {
           'from': {
             opacity: '0',
-            transform: 'translateY(20px)'
+            transform: 'translateY(-30px)'
           },
           'to': {
             opacity: '1',
@@ -28,7 +28,7 @@ module.exports = {
             opacity: '1',
            
           },
-          'to': {  transform: 'translateY(20)',
+          'to': {  transform: 'translateY(-30px)',
             opacity: '0',
           
           }

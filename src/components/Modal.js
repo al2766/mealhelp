@@ -12,7 +12,7 @@ const Modal = ({ showModal, setShowModal, children }) => {
 
   const handleCloseModal = () => {
     setAnimationClass('animate-fade-out');
-    setTimeout(() => setShowModal(false), 500); // Match the timeout with animation duration
+    setTimeout(() => setShowModal(false), 480); // Match the timeout with animation duration
   };
 
   const handleClickOutside = (event) => {
@@ -34,7 +34,7 @@ const Modal = ({ showModal, setShowModal, children }) => {
       >
         <div
           ref={modalRef}
-          className="bg-white p-5 rounded-lg shadow-lg w-96 relative"
+          className="bg-white p-5 rounded-lg shadow-lg w-80 md:w-96 relative"
           onClick={(e) => e.stopPropagation()}
         >
             

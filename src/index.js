@@ -8,6 +8,11 @@ import Home from "./routes/Home";
 import Shopping from "./routes/Shopping";
 import RecipeDetail from './routes/RecipeDetail';
 import AddRecipe from './routes/AddRecipe';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { AuthProvider } from './components/AuthProvider'; // Update this path to the correct one
+
+
 
 
 import "./App.css";
@@ -73,5 +78,23 @@ const router = createBrowserRouter([
 ]);
 
 createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+  <AuthProvider>
+ <ToastContainer
+      position="top-right"
+      autoClose={2500}
+      hideProgressBar={false}
+      newestOnTop={false}
+      closeOnClick
+      rtl={false}
+      pauseOnFocusLoss
+      draggable
+      pauseOnHover
+      className="toast-position"
+      style={{ top: '6em' }}
+
+      />
   <RouterProvider router={router} />
+  </AuthProvider>
+  </React.StrictMode>
 );

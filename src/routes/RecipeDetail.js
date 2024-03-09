@@ -413,39 +413,41 @@ const handleIngredientSelection = (ingredientName) => {
     // Join the instructions array into a single string
     const instructionsString = editInstructions.join("\n");
   
-    let imageUrl = recipe.image_url; // Default to the current image URL in the database
-  
-    if (newImageFile) {
-      // Check and delete old image if it exists
-      if (recipe.image_url) {
-        try {
-          const oldFilePath = recipe.image_url;
-          await supabase.storage.from("recipe-pics").remove([oldFilePath]);
-        } catch (error) {
-          console.error("Error deleting old image:", error);
-          // Handle the error appropriately
-        }
-      }
-  
-      // Handle new image file upload
-      const fileExtension = newImageFile.name.split(".").pop();
-      const fileName = `${uuidv4()}.${fileExtension}`;
-      const filePath = `recipeImages/${fileName}`;
-  
+    // Initialize imageUrl based on existing condition or fallback to placeholderImg
+  let imageUrl = recipe.image_url || placeholderImg;
+
+  if (newImageFile) {
+    // If there's an old image URL and it's not the placeholder, attempt to delete it
+    if (recipe.image_url && recipe.image_url !== placeholderImg) {
       try {
-        const { error: uploadError } = await supabase.storage
-          .from("recipe-pics")
-          .upload(filePath, newImageFile);
-  
-        if (uploadError) throw uploadError;
-  
-        imageUrl = filePath; // Update imageUrl to the path of the new image
+        const oldFilePath = recipe.image_url;
+        await supabase.storage.from("recipe-pics").remove([oldFilePath]);
       } catch (error) {
-        console.error("Error uploading new image:", error);
-        return;
+        console.error("Error deleting old image:", error);
       }
     }
-  
+
+    // Handle new image file upload
+    const fileExtension = newImageFile.name.split(".").pop();
+    const fileName = `${uuidv4()}.${fileExtension}`;
+    const filePath = `recipeImages/${fileName}`;
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("recipe-pics")
+        .upload(filePath, newImageFile);
+
+      if (uploadError) throw uploadError;
+
+      // Successfully uploaded new image, update imageUrl to the new path
+      imageUrl = filePath;
+    } catch (error) {
+      console.error("Error uploading new image:", error);
+      // Fallback to placeholder image if upload fails
+      imageUrl = placeholderImg;
+    }
+  }
+
     // Proceed with updating the recipe in the database
     try {
       const { error } = await supabase
@@ -454,7 +456,7 @@ const handleIngredientSelection = (ingredientName) => {
           title: editTitle,
           ingredients: JSON.stringify(editIngredients),
           instructions: instructionsString, // Use the joined string of instructions
-          image_url: imageUrl, // Update with the new image file path or existing path
+          image_url: imageUrl !== placeholderImg ? imageUrl : null, // Update DB field or set null if using placeholder
         })
         .eq("id", recipeId);
   
@@ -471,14 +473,14 @@ const handleIngredientSelection = (ingredientName) => {
         ingredients: editIngredients,
         instructions: instructionsString, // Update the state with the new instructions string
         image_url: imageUrl,
-        image: urlData?.publicUrl, // Update local state with new image URL for display
+      image: imageUrl === placeholderImg ? placeholderImg : urlData?.publicUrl,
       });
 
       setIsTransitioning(true);
       setTimeout(() => {
         setIsEditing(false);
         setIsTransitioning(false);
-      }, 400); // Duration of the fade-in transition
+      }, 200); // Duration of the fade-in transition
       setTimeout(() => {
       setIsEditing(false);
     }, 200); // Duration of the fade-in transition
@@ -521,7 +523,7 @@ const handleIngredientSelection = (ingredientName) => {
   <div className={`transition-opacity duration-300 ease-in-out ${!isTransitioning ? 'opacity-100' : 'opacity-0'}`}>
   <form onSubmit={handleFormSubmit}> {/* Wrap in form and handle on submit */}
 
-              <div className="z-0 bg-white z-10 sticky top-[4rem] py-5 right-0 flex gap-2">
+              <div className="z-0 bg-white z-0 sticky top-[4rem] py-5 right-0 flex gap-2">
   <button
   type="submit"
   className="flex flex-row align-center justify-center items-center gap-1 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
