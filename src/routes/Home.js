@@ -1,57 +1,42 @@
 import React, { useState, useEffect } from "react";
 import { Link } from 'react-router-dom';
-import { supabase } from "../supabaseClient";
+import { db } from "../firebase"; // Adjust the import path as needed
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { useAuth } from '../AuthProvider'; // Import your auth provider if you have one
 import placeholderImg from "../assets/images/placeholderImg.png";
-
-
 
 function Home() {
   const [recipes, setRecipes] = useState([]);
-  const [currentUser, setCurrentUser] = useState(null);
-
-  
-
+  const { currentUser } = useAuth(); // This assumes you're using an AuthProvider to manage user state
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setCurrentUser(session?.user);
-      if (session?.user) {
-        await fetchRecipes(session.user.id);
-      }
-    };
-    fetchUserData();
-  }, []);
+    if (currentUser?.uid) { // Ensure we have the current user's ID
+      fetchRecipes(currentUser.uid);
+    }
+  }, [currentUser]);
 
   const fetchRecipes = async (userId) => {
-    const { data, error } = await supabase
-      .from('recipes')
-      .select('*')
-      .eq("user_id", userId);
+    try {
+      const recipesColRef = collection(db, 'recipes');
+      const q = query(recipesColRef, where("user_id", "==", userId));
+      const querySnapshot = await getDocs(q);
+      const recipesList = [];
 
-    if (error) {
+      querySnapshot.forEach((doc) => {
+        let recipe = doc.data();
+        recipe.id = doc.id; // Include the document ID (recipe ID) in the recipe object
+        recipe.image_url = recipe.image_url ? recipe.image_url : placeholderImg; // Use placeholder if no image URL
+        recipesList.push(recipe);
+      });
+
+      setRecipes(recipesList);
+    } catch (error) {
       console.error("Error fetching recipes", error);
-      return;
     }
-
-    const recipesWithImages = await Promise.all(data.map(async (recipe) => {
-      let imageUrl = placeholderImg;      if (recipe.image_url) {
-        const { data: imgData, error: imgError } = await supabase.storage
-          .from('recipe-pics') // Replace with your actual Supabase storage bucket name
-          .getPublicUrl(recipe.image_url);
-
-        if (imgData && !imgError) {
-          imageUrl = imgData.publicUrl;
-        }
-      }
-      return { ...recipe, image_url: imageUrl };
-    }));
-
-    setRecipes(recipesWithImages);
   };
 
   return (
-    <div className="pt-32 pb-8 min-h-screen">
+    <div className="pt-32 bg-gray-100 pb-8 min-h-screen">
       <div className="container mx-auto px-4">
         <h1 className="text-4xl font-bold text-teal-600 mb-14 text-center">Recipes</h1>
         {currentUser ? (
@@ -79,6 +64,6 @@ function Home() {
       </div>
     </div>
   );
-        }  
+}
 
 export default Home;

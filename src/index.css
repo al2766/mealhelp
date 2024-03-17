@@ -1,3 +1,4 @@
 .Toastify__toast{
     top: 7em;
+    width: 80vw !important;
 }

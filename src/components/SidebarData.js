@@ -12,7 +12,7 @@ export const SidebarData = [
     cName: "nav-text",
   },
   {
-    title: "Add Recipe",
+    title: "My Kitchen",
     path: "/addrecipe",
     cName: "nav-text",
   },

@@ -12,7 +12,6 @@ import { useAuth } from '../AuthProvider'; // Import the hook
 import { db } from "../firebase"; // Adjust the import path as needed
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
-import { MdDelete } from 'react-icons/md';
 
 
 
@@ -90,65 +89,52 @@ function enrichIngredientsWithConversionInfo(recipeIngredients, masterIngredient
     // Proceed if a matching master ingredient with conversion info is found
     if (masterIngredient && masterIngredient.conversion_info) {
       // Prepare conversions object to store calculated quantities for all units
-      const conversions = calculateConversions(recipeIngredient.quantity, masterIngredient.conversion_info, recipeIngredient.unit);
+      const conversions = calculateConversions(recipeIngredient.quantity, masterIngredient.conversion_info);
+
       // Return the ingredient with the conversions object, including calculated quantities for all units
       return {
         ...recipeIngredient,
         conversions: conversions,
       };
     }
-console.log(recipeIngredient);
+
     // If no matching master ingredient is found, return the original recipe ingredient
     return recipeIngredient;
   });
 }
 
-function calculateConversions(initialQuantity, conversionInfo, initialUnit) {
-  // Convert initial quantity to grams based on the initial unit
-  let quantityInGrams;
-  switch (initialUnit) {
-    case 'cups':
-      quantityInGrams = initialQuantity * conversionInfo.cup_to_g;
-      break;
-    case 'tbsp':
-      quantityInGrams = initialQuantity * conversionInfo.tbsp_to_g;
-      break;
-    case 'pieces':
-      quantityInGrams = initialQuantity * conversionInfo.each_to_g;
-      break;
-    case 'g':
-    default:
-      quantityInGrams = initialQuantity;
-      break;
-  }
-
+function calculateConversions(quantity, conversionInfo) {
+  const quantityInGrams = parseFloat(quantity); // Assuming the initial quantity is always in grams
   const conversions = {};
 
-  // Check and calculate conversions for all units from grams
+  // Calculate for cups and tbsp, if conversion rates are available
   if (conversionInfo.cup_to_g) {
     conversions.cups = (quantityInGrams / conversionInfo.cup_to_g).toFixed(1);
   }
   if (conversionInfo.tbsp_to_g) {
     conversions.tbsp = (quantityInGrams / conversionInfo.tbsp_to_g).toFixed(1);
   }
+
+  // Calculate for 'pieces', if each_to_g conversion exists
   if (conversionInfo.each_to_g) {
     conversions.pieces = (quantityInGrams / conversionInfo.each_to_g).toFixed(1);
   }
 
   // Always include the grams conversion
-  conversions.g = quantityInGrams;
-
+  conversions.g = quantityInGrams.toFixed(1);
+console.log(conversions)
   return conversions;
 }
 
 
 
-function enrichIngredients() {
+useEffect(() => {
   if (recipe && userIngredients.length > 0) {
       // Perform enrichment only if necessary. This condition should be adjusted to fit your logic.
       // For example, you might check if enrichment has already been done to avoid doing it again.
       if (!recipe.ingredientsEnriched) { // Assume this is a flag you set when enrichment is done
           const enrichedIngredients = enrichIngredientsWithConversionInfo(recipe.ingredients, userIngredients);
+          console.log(enrichedIngredients)
           setRecipe({
               ...recipe,
               ingredients: enrichedIngredients,
@@ -157,16 +143,9 @@ function enrichIngredients() {
           
       }
   }
-}
-
-  useEffect(() => {
-enrichIngredients()
+  // The dependencies array ensures this effect only reruns if `recipe` or `userIngredients` change.
+  // Adjust the condition inside the effect to ensure it doesn't run endlessly.
 }, [recipe, userIngredients]);
-
-
-
-
-
 
 const handleInstructionChange = (index, event) => {
   const updatedInstructions = editInstructions.map((instruction, i) => {
@@ -247,7 +226,7 @@ const handleIngredientSelection = (ingredientName) => {
   
   
 
-
+  useEffect(() => {
     const fetchRecipe = async () => {
       const docRef = doc(db, "recipes", recipeId);
       const docSnap = await getDoc(docRef);
@@ -256,8 +235,7 @@ const handleIngredientSelection = (ingredientName) => {
         let data = docSnap.data();
         data.id = docSnap.id; // Include the document ID
         
-        data.image_url = data.image_url || placeholderImg; // Fallback to placeholder image if no image URL
-
+     
           // Transform instructions from the object format to an array format
           const instructionsArray = Object.keys(data.instructions).map(key => ({
             stepNumber: data.instructions[key].stepNumber,
@@ -266,6 +244,7 @@ const handleIngredientSelection = (ingredientName) => {
         
           data.instructions = instructionsArray;
         
+      console.log(data)
   
         setRecipe(data);
       } else {
@@ -273,7 +252,6 @@ const handleIngredientSelection = (ingredientName) => {
       }
     };
   
-    useEffect(() => {
     fetchRecipe();
   }, [recipeId]);
   
@@ -385,8 +363,6 @@ const handleIngredientSelection = (ingredientName) => {
       setRecipe(prev => ({ ...prev, ...updatePayload }));
       setIsEditing(false); // Exit editing mode
       setNewImageFile(null); // Clear the new image file state
-      fetchRecipe();
-      enrichIngredients();
     } catch (error) {
       console.error("Error updating recipe:", error);
       // Optionally, handle the error (e.g., show a message to the user)
@@ -395,34 +371,6 @@ const handleIngredientSelection = (ingredientName) => {
     }
   };
 
-  const removeIngredient = (index) => {
-    // Trigger fade-out animation for the item
-    document.getElementById(`ingredient-${index}`).style.animation = 'fadeOut 0.5s ease-out forwards';
-  
-    // Wait for the animation to complete before removing the item
-    setTimeout(() => {
-      setEditIngredients((currentIngredients) =>
-        currentIngredients.filter((_, i) => i !== index)
-      );
-    }, 500); // Match the duration of the animation
-  };
-  
-  
-  const removeInstruction = (index) => {
-    // Apply fade-out animation
-    const instructionElement = document.getElementById(`edit-instruction-input-${index}`);
-    if (instructionElement) {
-      instructionElement.style.animation = 'fadeOut 0.5s ease-out forwards';
-      
-      // Remove the instruction from state after animation completes
-      setTimeout(() => {
-        setEditInstructions(currentInstructions =>
-          currentInstructions.filter((_, i) => i !== index)
-        );
-      }, 500); // Ensure this matches the duration of your CSS animation
-    }
-  };
-  
   
   
 
@@ -447,31 +395,19 @@ const handleIngredientSelection = (ingredientName) => {
     await handleSave(); // Call your existing save logic
 };
 
-const handleTextAreaInput = (e, index) => {
-  // Call your existing handleInstructionChange
-  handleInstructionChange(index, e);
 
-  // Automatically adjust the height
-  e.target.style.height = "inherit"; // Reset height to recalculate
-  e.target.style.height = `${e.target.scrollHeight}px`; // Set new height
-};
-
-
-const columnsClass = recipe.ingredients.length > 4 ? 'grid-cols-2' : 'grid-cols-1';
 
 
   return (
 
 
-    <div className={`pt-[7rem] p-6 bg-gray-100 rounded-lg shadow-lg mx-auto transition-opacity duration-300`}>
+    <div className={`pt-[7rem] p-6 bg-white rounded-lg shadow-lg mx-auto transition-opacity duration-300`}>
  {isEditing ? (
   // Edit mode
-  <div className="container text-gray-600 mx-auto px-4 max-w-3xl"> {/* Adjust max-width as needed */}
-
   <div className={`transition-opacity duration-300 ease-in-out ${!isTransitioning ? 'opacity-100' : 'opacity-0'}`}>
   <form onSubmit={handleFormSubmit}> {/* Wrap in form and handle on submit */}
 
-              <div className="z-10 bg-gray-100 z-0 sticky top-[4rem] py-5 right-0 flex gap-2">
+              <div className="z-0 bg-white z-0 sticky top-[4rem] py-5 right-0 flex gap-2">
   <button
   type="submit"
   className="flex flex-row align-center justify-center items-center gap-1 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
@@ -483,7 +419,7 @@ const columnsClass = recipe.ingredients.length > 4 ? 'grid-cols-2' : 'grid-cols-
   </div>
 
 
-    <div className="bg-white shadow-md text-gray-600 p-4 rounded-lg my-7">
+    <div className="bg-gray-100 p-4 rounded-lg my-7">
       <label
         htmlFor="title"
         className="text-center block text-2xl font-bold mb-2"
@@ -499,7 +435,7 @@ const columnsClass = recipe.ingredients.length > 4 ? 'grid-cols-2' : 'grid-cols-
         
       />
     </div>
-    <div className="bg-white text-gray-600 shadow-md p-4 rounded-lg mb-4 flex justify-center items-center">
+    <div className="bg-green-50 p-4 rounded-lg mb-4 flex justify-center items-center">
   <label htmlFor="imageUpload" className="block w-[18rem] h-[18rem] border-2 border-dashed border-gray-300 rounded-lg cursor-pointer flex justify-center items-center">
     <div className="text-center">
       {editImage ? (
@@ -519,11 +455,11 @@ const columnsClass = recipe.ingredients.length > 4 ? 'grid-cols-2' : 'grid-cols-
 </div>
 
 
-    <div className="text-gray-600 shadow-md bg-white p-4 rounded-lg mb-4">
+    <div className="bg-green-50 p-4 rounded-lg mb-4">
   <h3 className="text-2xl font-semibold text-center mb-2">Ingredients</h3>
   {editIngredients.map((ingredient, index) => (
-  <div key={index} id={`ingredient-${index}`}
-  className={`relative flex md:flex-row flex-col sm:items-center mb-4 md:gap-2 ${index !== 0 ? "animate-fade-in" : "animate-fade-out"}`}>
+  <div key={index} className="mb-4">
+    <div className="flex space-x-2 relative">
     <input
     hidden
                         type="text"
@@ -531,98 +467,68 @@ const columnsClass = recipe.ingredients.length > 4 ? 'grid-cols-2' : 'grid-cols-
                         required
                         className="bg-transparent w-[0.1rem] h-[0.1rem] ml-[8rem] mt-9 absolute "
                       />
-                    <button
-  type="button"
-  onClick={() => {
-    setCurrentIngredientIndex(index);
-    setShowIngredientModal(true);
-  }}
-  className={`border border-gray-300 sm:w-1/6 sm:flex-grow bg-white px-10 py-2 rounded transition duration-300 hover:bg-gray-200 mb-2 sm:mb-0 ${
-    ingredient.name ? "text-gray-600" : "text-gray-400"
-  }`}
->
-  {ingredient.name || "Choose Ingredient"}
-</button>
-<div className="flex flex-1 sm:flex-row sm:ml-2">
-
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCurrentIngredientIndex(index);
+                          setShowIngredientModal(true);
+                        }}
+                        className="w-2/3 sm:flex-grow bg-white text-black px-10 py-2 rounded hover:bg-gray-200 mb-2 sm:mb-0"
+                      >
+                        {ingredient.name || "Choose Ingredient"}
+                      </button>
       <input
         type="number"
         name="quantity"
         value={ingredient.quantity}
         onChange={(e) => handleIngredientChange(index, 'quantity', e.target.value)}
         placeholder="Quantity"
-        className="text-gray-600 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-200 w-full sm:flex-grow sm:ml-2"
+        className="md:w-1/5 text-black p-2 border border-gray-300 rounded w-1/3"
         required
       />
     <select
       name="unit"
       value={ingredient.unit}
       onChange={(e) => handleIngredientChange(index, 'unit', e.target.value)}
-      className=" p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-200 w-full sm:flex-grow sm:ml-2"
+      className="md:w-1/5 text-black p-2 border border-gray-300 rounded w-1/3"
       required
     >
-          <option disabled value="">Unit</option>
-
       {ingredient.availableUnits && ingredient.availableUnits.map(unit => (
         <option key={unit} value={unit}>{unit}</option>
       ))}
     </select>
     </div>
-    
-    {editIngredients.length > 1 && ( // Only show the delete button if there is more than one ingredient
-        <button
-          type="button"
-          onClick={() => removeIngredient(index)}
-          className="flex items-center justify-center bg-gray-400 transition duration-300 hover:bg-gray-700 text-white font-bold p-2 rounded"
-          aria-label="Remove ingredient"
-        >
-          <MdDelete /> Remove
-        </button>
-      )}
   </div>
 ))}
 
    <button
    type="button"
               onClick={addNewIngredient}
-              className="mt-2 bg-[#58acbb] transition duration-300 hover:bg-[#3e7983] text-white font-bold py-2 px-4 rounded"
+              className="mt-2 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
             >
-              Next Ingredient
+              Add New Ingredient
             </button>
 </div>
 
-<div className="text-gray-600 shadow-md bg-white p-4 rounded-lg">
+<div className="bg-blue-50 p-4 rounded-lg">
       <h3 className="text-2xl font-semibold text-center mb-2">
         Instructions
       </h3>
       {
   editInstructions.map((instruction, index) => (
-    <div 
-    key={index} 
-    id={`edit-instruction-input-${index}`} 
-    className={`relative mb-4 ${index !== 0 ? "animate-fade-in" : ""}`}
-  >      <label className="block text-grey-darker text-sm font-bold mb-2" htmlFor={`instruction-${index}`}>
+    <div key={index} className="mb-2">
+      <label className="block text-grey-darker text-sm font-bold mb-2" htmlFor={`instruction-${index}`}>
         Step {index + 1}
       </label>
-      <textarea
-  id={`instruction-${index}`}
-  value={instruction.text}
-  onChange={(e) => handleTextAreaInput(e, index)} // Updated to use handleTextAreaInput
-  placeholder={`Instruction for step ${index + 1}`}
-  className="textarea textarea-bordered w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200"
-  required
-  style={{ minHeight: "75px" }} // Ensure there's a minimum height
-></textarea>
-      {editInstructions.length > 1 && ( // Only show the delete button if there's more than one instruction
-          <button
-            type="button"
-            onClick={() => removeInstruction(index)}
-            className="flex justify-center items-center gap-3 w-full bg-gray-400 transition duration-300 hover:bg-gray-700 text-white font-bold p-2 rounded"
-            aria-label="Remove instruction"
-          >
-            <MdDelete /> Remove
-          </button>
-        )}
+      <input
+        id={`instruction-${index}`}
+        type="text"
+        value={instruction.text} // Correctly display the text property
+        onChange={(e) => handleInstructionChange(index, e)}
+        placeholder={`Instruction for step ${index + 1}`}
+        className="text-black w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200"
+        required
+      />
     </div>
   ))
 }
@@ -632,7 +538,7 @@ const columnsClass = recipe.ingredients.length > 4 ? 'grid-cols-2' : 'grid-cols-
       <button
         type="button"
         onClick={addInstructionInput}
-        className="mt-2 bg-[#58acbb] transition duration-300 hover:bg-[#3e7983] text-white font-bold py-2 px-4 rounded"
+        className="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
       >
         Next Instruction
       </button>
@@ -680,24 +586,22 @@ const columnsClass = recipe.ingredients.length > 4 ? 'grid-cols-2' : 'grid-cols-
 
 </form>
   </div>
-  </div>
 ) : (
  
         // View mode
         <div className={`transition-opacity duration-300 ease-in-out ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
-  <div className="container text-gray-600 mx-auto px-4 max-w-3xl"> {/* Adjust max-width as needed */}
 
-<div className=" z-10 sticky top-[4rem] bg-gray-100 py-5 right-0 flex gap-2">
+<div className=" z-10 sticky top-[4rem] bg-white py-5 right-0 flex gap-2">
     <button
       onClick={enterEditMode}
-      className="bg-gray-500 transition duration-300 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
+      className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
       title="Edit Recipe"
     >
       <MdEdit />
     </button>
     <button
       onClick={() => deleteRecipe(recipe.id)}
-      className="bg-red-500 transition duration-300 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
+      className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
       title="Delete Recipe"
     >
               <svg
@@ -714,11 +618,10 @@ const columnsClass = recipe.ingredients.length > 4 ? 'grid-cols-2' : 'grid-cols-
               </svg>
             </button>
           </div>
-<div className="my-4 border-b-2">
-          <h2 className="text-3xl font-bold text-center mb-4">
+          <h2 className="text-3xl font-bold text-teal-600 text-center mb-4">
     {recipe.title}
   </h2>
-</div>
+
           <div className="flex justify-center mb-6">
           <img 
     src={recipe.image_url}
@@ -727,51 +630,47 @@ const columnsClass = recipe.ingredients.length > 4 ? 'grid-cols-2' : 'grid-cols-
 />
 
           </div>
-          <div className="grid gap-4 mb-6">
-     
-
-          <div className="bg-white shadow-md p-4 rounded-lg">
+          <div className="grid md:grid-cols-2 gap-4 mb-6">
+          <div className="bg-green-50 p-4 rounded-lg">
   <h3 className="text-2xl font-semibold text-center mb-2">Ingredients</h3>
-  
-  <div className="grid md:grid-cols-2 gap-4">
-    {recipe.ingredients.map((ingredient, index) => (
-      <div key={index} className="flex items-center border-b border-gray-200 py-2">
-        <div className="flex-grow">
-          <div className="text-gray-700">{`${ingredient.name}: ${ingredient.quantity} ${ingredient.unit}`}</div>
-        </div>
-        <button
-          onClick={() => switchUnit(ingredient.name)}
-          className="ml-2 bg-[#58acbb] hover:bg-[#3e7983] text-white font-bold py-1 px-3 rounded text-sm"
-        >
-          Switch Unit
-        </button>
-      </div>
-    ))}
-  </div>
+  <ul className="max-w-4xl mx-auto">
+  {recipe.ingredients.map((ingredient, index) => (
+  <li key={index} className="flex justify-between items-center border-b border-gray-200 py-2">
+    <span className="text-gray-700">{`${ingredient.name}: ${ingredient.quantity} ${ingredient.unit}`}</span>
+    <button
+      onClick={() => switchUnit(ingredient.name)}
+      className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded inline-flex items-center gap-2 text-sm"
+    >
+      <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
+      Switch Unit
+    </button>
+  </li>
+))}
+
+
+  </ul>
 </div>
 
 
 
 
 
-<div className="bg-white shadow-md p-4 rounded-lg">
+
+<div className="bg-blue-50 p-4 rounded-lg">
   <h3 className="text-2xl font-semibold mb-5">Instructions</h3>
   <div className="space-y-2">
-    {recipe.instructions.map((instruction, index) => (
-      <div key={index} className="flex flex-col gap-1">
-        <strong className="text-teal-700 font-extrabold">{`Step ${index + 1}:`}</strong>
-        <span className="whitespace-pre-wrap mb-5 text-gray-600">{instruction.text}</span>
-      </div>
-    ))}
-  </div>
+  {recipe.instructions.map((instruction, index) => (
+    <div key={index} className="flex gap-3 items-start">
+      <span>{`Step ${index + 1}: ${instruction.text}`}</span>
+    </div>
+  ))}
 </div>
 
-
+</div>
 
 
           </div>
 
-        </div>
         </div>
       )}
     </div>

@@ -1,16 +1,26 @@
 import React, { useState, useEffect, useRef } from "react";
-import { supabase } from "../supabaseClient";
-import { signUpNewUser, signInWithEmail, signInWithMagicLink, signOut } from "../supabaseAuth";
 import { v4 as uuidv4 } from "uuid"; // Make sure to import uuid
 import Modal from '../components/Modal'; // Adjust the import path according to your file structure
 import LoadingSpinner from '../components/LoadingSpinner'; // Adjust the import path according to your file structure
 import { toast } from 'react-toastify';
 import { MdDelete } from 'react-icons/md';
+import { supabase } from "../supabaseClient";
+import { useAuth } from '../AuthProvider'; // Import the hook
+import { db } from '../firebase'; // Adjust the import path as needed
+import { collection, getDoc, getDocs, query, where, addDoc, doc, setDoc } from "firebase/firestore";
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+
+
 
 
 
 
 export default function AddRecipe() {
+  
+  const { currentUser, signUp, signIn, signOutUser, authError, justSignedUp, setJustSignedUp } = useAuth();
+  const [imagePreview, setImagePreview] = useState(null);
+
+  const [removingIndex, setRemovingIndex] = useState(null);
 
   const [masterIngredients, setMasterIngredients] = useState([]);
   const fileInputRef = useRef(null);
@@ -22,7 +32,6 @@ export default function AddRecipe() {
   const [phone, setPhone] = useState("");
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
-  const [authError, setAuthError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [userListener, setUserListener] = useState(null);
   const [title, setTitle] = useState("");
@@ -65,7 +74,72 @@ export default function AddRecipe() {
   });
   
 
+  
 
+  useEffect(() => {
+    if (justSignedUp) {
+      setShowEmailVerificationMessage(true); // Show verification message if user just signed up
+      setTimeout(() => {
+        setShowEmailVerificationMessage(false); // Hide verification message after a delay
+        setJustSignedUp(false); // Reset justSignedUp state
+      }, 3000); // Adjust the delay as needed
+    }
+  }, [justSignedUp, setJustSignedUp]);
+
+  const handleSignUp = async () => {
+
+  
+    setIsLoading(true);
+    try {
+      await signUp(email, password, confirmPassword);
+       setShowEmailVerificationMessage(true);
+      setTimeout(() => {
+         setIsSignedIn(true);
+         setShowEmailVerificationMessage(false);
+       }, 3000);
+      setIsLoading(false);
+    
+    } catch (error) {
+
+      setIsLoading(false);
+    }
+    
+  };
+  
+  const handleSignIn = async () => {
+   
+  
+    setIsLoading(true);
+    try {
+      await signIn(email, password);
+      setIsLoading(false);
+
+    } catch (error) {
+      console.error("Firebase sign in error:", error);
+     
+    }
+  };
+  
+  const handleSignOut = async () => {
+    setIsLoading(true); // Optional: Set a loading state
+  
+    try {
+      await signOutUser(); // Call signOutUser without passing the auth object
+      // Update application state or UI as needed
+      setIsSignedIn(false);
+      setEmail(""); // Clear email state
+      setPassword(""); // Clear password state
+      setConfirmPassword(""); // Clear password state
+
+      console.log("User signed out successfully");
+    } catch (error) {
+      // Handle errors (if any)
+     
+    }
+  
+    setIsLoading(false); // Optional: Clear loading state
+  };
+  
 
   const renderEmailVerificationMessage = () => {
     if (showEmailVerificationMessage) {
@@ -103,222 +177,102 @@ const closeIngredientModal = () => setShowIngredientModal(false);
     }, 350); // duration of the fade-out animation
   };
 
+  const PUBLIC_USER_ID = 'cJdHi6LhyAdlCnUpMlJ0u2KiDJF2'; // Replace with the actual ID of the owner account used for public recipes
+
+
   const fetchIngredientsMaster = async () => {
-    try {
-      let { data, error } = await supabase
-        .from('ingredients_master')
-        .select('*');
-    
-      if (error) throw error;
+    // Reference to the ingredients_master collection
+    const ingredientsMasterRef = collection(db, 'ingredients_master');
   
-      console.log('Master ingredients fetched: ', data); // Log the fetched data
-      setMasterIngredients(data);
+    let queryConstraints = [];
+  
+    // Check if there is a logged-in user and if they are not the owner
+    if (currentUser && currentUser.uid !== PUBLIC_USER_ID) {
+      // Fetch ingredients that are either public or belong to the current user
+      queryConstraints = [
+        where("user_id", "in", [PUBLIC_USER_ID, currentUser.uid])
+      ];
+    } else if (!currentUser || currentUser.uid === PUBLIC_USER_ID) {
+      // If not logged in or if it is the owner account, fetch only public ingredients
+      queryConstraints = [where("user_id", "==", PUBLIC_USER_ID)];
+    }
+  
+    try {
+      // Apply the query constraints
+      const q = query(ingredientsMasterRef, ...queryConstraints);
+      const querySnapshot = await getDocs(q);
+    
+      // Map through documents and format them into an array of ingredients
+      const ingredientsList = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+    
+      // Update your state with the fetched ingredients
+      setMasterIngredients(ingredientsList);
     } catch (error) {
-      console.error("Error fetching master ingredients:", error.message);
+      console.error("Error fetching ingredients from Firestore:", error.message);
     }
   };
   
+  
+
   useEffect(() => {
     fetchIngredientsMaster();
-  }, []);
+  }, [currentUser?.uid]); // React to changes in currentUser.uid
+  
   
   
 
   // ... existing functions
 
-  const resetForm = () => {
-    setTitle("");
-    setIngredients([{ name: "", quantity: "", unit: "" }]);
-    setInstructions([""]);
-    setImageFile(null);
-    // Directly reset the file input
+ const resetForm = () => {
+  setTitle("");
+  setIngredients([{ name: "", quantity: "", unit: "" }]);
+  setInstructions([{ text: "" }]);
+  setImageFile(null);
+  setImagePreview(null); // Also clear the image preview state
   if (fileInputRef.current) {
-    fileInputRef.current.value = ""; // This will clear the file input visually
+    fileInputRef.current.value = ""; // Clear the file input visually
   }
+};
 
-  };
 
-  const handleImageChange = async (event) => {
-    const file = event.target.files[0];
-    setImageFile(file);
-  };
   const uploadImage = async (imageFile) => {
     if (!imageFile) {
-      console.error("No image file provided");
-      return null;
-    }
-
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-    if (!userId) {
-      console.error("No user logged in");
-      return null;
-    }
-
-    const fileExtension = imageFile.name.split(".").pop();
-    const fileName = `${userId}/${uuidv4()}.${fileExtension}`;
-    const filePath = `recipeImages/${fileName}`;
-
-    try {
-      const { error: uploadError } = await supabase.storage
-        .from("recipe-pics")
-        .upload(filePath, imageFile, {
-          cacheControl: "3600",
-          upsert: false,
-        });
-
-      if (uploadError) {
-        console.error("Error uploading image:", uploadError);
+        console.error("No image file provided");
         return null;
-      }
-
-      // Return only the filePath, not the full URL
-      return filePath;
-    } catch (error) {
-      console.error("Error in uploadImage:", error);
-      return null;
     }
-  };
 
-  // Check session on component mount
-  useEffect(() => {
-    const checkSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      setIsSignedIn(!!session);
-    };
-    checkSession();
-  }, []);
-
-  useEffect(() => {
-    const userListener = supabase
-      .channel("public:user")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "user" },
-        (payload) => console.log(payload) // Replace with your handleAllEventsPayload function
-      )
-      .subscribe();
-
-    setUserListener(userListener);
-
-    return () => {
-      supabase.removeChannel(userListener);
-    };
-  }, []);
-
-
-
-
-
-
-  const handleSignUp = async () => {
-    if (!email || !password || !confirmPassword) {
-      setAuthError("Please fill all the fields.");
-      return;
+    // Ensure that there's a current user with a UID before proceeding
+    if (!currentUser || !currentUser.uid) {
+        console.error("No current user or user ID unavailable");
+        return null;
     }
-  
-    if (password !== confirmPassword) {
-      setAuthError("Passwords do not match.");
-      return;
-    }
-  
-    setIsLoading(true);
-  
+
+    const storage = getStorage();
+    const fileExtension = imageFile.name.split('.').pop();
+    const fileName = `${currentUser.uid}/${uuidv4()}.${fileExtension}`;
+    const filePath = `recipeImages/${fileName}`;
+    const fileRef = storageRef(storage, filePath);
+
     try {
-      let { data: users, error } = await supabase
-        .from('users') // Replace with your user table name
-        .select('email')
-        .eq('email', email);
-  
-      if (error) {
-        console.error("Supabase query error:", error);
-        throw error;
-      }
-  
-      if (users.length > 0) {
-        setAuthError("An account with this email already exists.");
-        setIsLoading(false);
-        return;
-      }
+        // Upload the file
+        await uploadBytes(fileRef, imageFile);
+
+        // Get the URL of the uploaded file
+        const url = await getDownloadURL(fileRef);
+
+        // Return the URL of the file
+        return url;
     } catch (error) {
-      setAuthError("Error during user check.");
-      setIsLoading(false);
-      return;
+        console.error("Error uploading image to storage:", error);
+        return null;
     }
-  
-    const response = await signUpNewUser(email, password);
-    setIsLoading(false);
-  
-    if (response.error) {
-      setAuthError(response.error.message || "An error occurred during sign up.");
-    } else if (response.data && response.data.user) {
-      setShowEmailVerificationMessage(true);
-      setTimeout(() => {
-        setIsSignedIn(true);
-        setShowEmailVerificationMessage(false);
-      }, 3000);
-    } else {
-      setAuthError("Unexpected error during sign up. Please try again.");
-    }
-  };
-  
-
-  const handleSignInWithEmail = async () => {
-    if (!email || !password) {
-      setAuthError("Email and password cannot be empty.");
-      return;
-    }
-    setIsLoading(true);
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.signInWithPassword({ email, password });
-    setIsLoading(false);
-
-    if (user) {
-
-      setIsSignedIn(true);
-      setAuthError("");
- 
-    } else {
-      setAuthError(error.message);
-    }
-  };
-
-  const handleSignInWithMagicLink = async () => {
-    if (!email) {
-      setAuthError("Email cannot be empty.");
-      return;
-    }
-    setIsLoading(true);
-       
-    const { error } = await signInWithMagicLink(email); // Ensure you have this function in your auth utilities
-    setIsLoading(false);
-
-    if (error) {
-      setAuthError(error.message);
-    } else {
-      setAuthError("Check your email for the magic link.");
-    }
-  };
+};
 
 
-  const handleSignOut = async () => {
-    setIsLoading(true);
-    const { error } = await supabase.auth.signOut();
-    setIsLoading(false);
 
-    if (error) {
-      setAuthError(error.message);
-    } else {
-      setIsSignedIn(false);
-      setAuthError("");
-    }
-  };
 
   const handleTitleChange = (e) => {
     setTitle(e.target.value);
@@ -338,16 +292,36 @@ const closeIngredientModal = () => setShowIngredientModal(false);
     setIngredients([...ingredients, { name: "", quantity: "", unit: "" }]);
     setisIngredientSelected(false);
   };
+
   const removeIngredientInput = (index) => {
-    setIngredients(currentIngredients => 
-      currentIngredients.filter((_, i) => i !== index)
-    );
+    // Apply fade-out animation
+    const ingredientElement = document.getElementById(`ingredient-input-${index}`);
+    if (ingredientElement) {
+      ingredientElement.style.animation = 'fadeOut 0.5s ease-out forwards';
+  
+      // Remove the ingredient from state after animation completes
+      setTimeout(() => {
+        setIngredients(currentIngredients =>
+          currentIngredients.filter((_, i) => i !== index)
+        );
+      }, 500); // Animation duration
+    }
   };
   
+  
   const removeInstructionInput = (index) => {
-    setInstructions(currentInstructions => 
-      currentInstructions.filter((_, i) => i !== index)
-    );
+    // Apply fade-out animation
+    const instructionElement = document.getElementById(`instruction-input-${index}`);
+    if (instructionElement) {
+      instructionElement.style.animation = 'fadeOut 0.5s ease-out forwards';
+      
+      // Remove the instruction from state after animation completes
+      setTimeout(() => {
+        setInstructions(currentInstructions =>
+          currentInstructions.filter((_, i) => i !== index)
+        );
+      }, 500); // Match this with the CSS animation duration
+    }
   };
   
   const handleInstructionChange = (index, e) => {
@@ -383,23 +357,30 @@ const closeIngredientModal = () => setShowIngredientModal(false);
       return; // Prevent form submission if validation fails
     }
   
-    const formattedInstructions = instructions.map((instr, index) => `Step ${index + 1}: ${instr}`).join("\n");
-  
+    const formattedInstructions = instructions.map((instr, index) => ({
+      stepNumber: index + 1,
+      text: instr,
+    }));
+
     setIsLoading(true);
-  
-    // Using toast.promise for async operation
     toast.promise(
-      // Your promise function
       async () => {
-        let imageUrl = null;
-        if (imageFile) {
-          imageUrl = await uploadImage(imageFile);
-          if (!imageUrl) {
-            throw new Error("Failed to upload image.");
+          let imageUrl = null;
+          // If there's an image file, upload it and get the URL
+          if (imageFile) {
+              imageUrl = await uploadImage(imageFile);
           }
-        }
-  
-        await addRecipeToSupabase(title, ingredients, formattedInstructions, imageUrl);
+
+          // Ensure you handle the null case if the image wasn't uploaded
+          if (imageFile && !imageUrl) {
+              throw new Error("Failed to upload image.");
+          }
+    
+        const userId = currentUser?.uid; // Get UID from the authenticated user
+        if (!userId) throw new Error("No user logged in");
+    
+        // This function adds the recipe to Firestore and needs to be defined
+        await addRecipeToFirestore(title, ingredients, formattedInstructions, imageUrl, userId);
       },
       {
         pending: 'Adding recipe...',
@@ -408,124 +389,116 @@ const closeIngredientModal = () => setShowIngredientModal(false);
       }
     ).then(() => {
       // Reset form and state variables upon successful recipe addition
-      setTitle("");
-      setIngredients([{ name: "", quantity: "", unit: "" }]);
-      setInstructions([""]);
-      setImageFile(null);
+      resetForm(); // Implement this function to reset your form fields
       setIsLoading(false);
     }).catch((error) => {
       console.error("Error adding recipe:", error);
       setIsLoading(false);
     });
+    
+  };
+  const sanitizeTitleForId = (title) => {
+    return title.replace(/\s+/g, '_').toLowerCase();
   };
   
   
-  // Make sure to bind this function in the constructor if you are using class components
-  
-  
 
+  const addRecipeToFirestore = async (title, ingredients, formattedInstructions, imageUrl, userId) => {
 
-  const addRecipeToSupabase = (title, ingredients, instructions, imageUrl) => {
-    return new Promise(async (resolve, reject) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const user = session?.user;
-      if (!user) {
-        reject("No user logged in");
-        return;
-      }
-  
-      const userId = user.id;
-      try {
-        const { data: recipeData, error: recipeError } = await supabase
-          .from("recipes")
-          .insert([
-            {
-              user_id: userId,
-              title,
-              ingredients: JSON.stringify(ingredients),
-              instructions,
-              image_url: imageUrl,
-            },
-          ])
-          .single();
-  
-        if (recipeError) {
-          reject("Error inserting recipe");
-        } else {
-          resolve(recipeData);
-        }
-      } catch (error) {
-        reject("An error occurred during recipe insertion");
-      }
-    });
-  };
-  
-  const handleAddIngredient = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-  
-    if (session?.user) {
-      const ingredientNameCapitalized = newIngredientDetails.name.replace(/\b\w/g, c => c.toUpperCase());
-  
-      try {
-        const { data: existingIngredients, error: existingError } = await supabase
-          .from("ingredients_master")
-          .select("name")
-          .eq("name", ingredientNameCapitalized);
-  
-        if (existingError) throw existingError;
-  
-        if (existingIngredients.length === 0) {
-          // Proceed to add the ingredient
-          // Convert nutrient and conversion info
-          let nutrientInfo = {};
-          let conversionInfo = {};
-  
-          for (const key of Object.keys(newIngredientDetails.nutrient_info)) {
-            nutrientInfo[key] = parseFloat(newIngredientDetails.nutrient_info[key]);
-          }
-          for (const key of Object.keys(newIngredientDetails.conversion_info)) {
-            conversionInfo[key] = parseFloat(newIngredientDetails.conversion_info[key]);
-          }
-  
-          const { error } = await supabase
-            .from("ingredients_master")
-            .insert([{
-              user_id: session.user.id,
-              name: ingredientNameCapitalized,
-              nutrient_info: nutrientInfo,
-              conversion_info: conversionInfo,
-            }]);
-  
-          if (error) throw error;
-  
-          // Clear the input fields
-          setNewIngredientDetails({
-            name: '',
-            nutrient_info: {
-              fat: '',
-              carbs: '',
-              protein: '',
-              calories: '',
-            },
-            conversion_info: {
-              cup_to_g: '',
-              each_to_g: '',
-              tbsp_to_g: '',
-            },
-          });
-          setShowNewIngredientModal(false);
-          alert("Ingredient added successfully.");
-        } else {
-          alert("Ingredient already exists.");
-        }
-      } catch (error) {
-        console.error("Error adding new ingredient:", error);
-        alert("Failed to add ingredient.");
-      }
-    } else {
-      alert("You must be logged in to add ingredients.");
+    const sanitizedTitle = sanitizeTitleForId(title);
+
+    try {
+      const recipeDocRef = doc(db, "recipes", sanitizedTitle); // Use sanitizedTitle as document ID
+      await setDoc(recipeDocRef, {
+
+      title: title,
+        ingredients: ingredients,
+        instructions: formattedInstructions,
+        image_url: imageUrl,
+        user_id: userId
+      });
+      console.log("Document written with ID: ", sanitizedTitle);
+      return sanitizedTitle; // This will return the new document's ID
+    } catch (e) {
+      console.error("Error adding document: ", e);
     }
   };
+
+  useEffect(() => {
+    fetchIngredientsMaster(); // Initial fetch when component mounts
+  }, []); // Empty dependency array ensures this runs only once at mount
+
+  const handleAddIngredient = async () => {
+    if (currentUser) {
+      const ingredientNameCapitalized = newIngredientDetails.name.replace(/\b\w/g, c => c.toUpperCase());
+  
+      // Define the Firestore collection where you want to add the new ingredient
+      const ingredientDocRef = doc(db, "ingredients_master", ingredientNameCapitalized); // Directly referencing the document by name
+  
+      // Wrap the async operation with toast.promise
+      toast.promise(
+        (async () => {
+          const docSnap = await getDoc(ingredientDocRef);
+          if (docSnap.exists()) {
+            throw new Error("Ingredient already exists."); // Use throw to trigger the toast.error
+          }
+  
+          let conversionInfo = { ...newIngredientDetails.conversion_info };
+          if (!conversionInfo.each_to_g || conversionInfo.each_to_g === '') {
+            delete conversionInfo.each_to_g; // Remove 'each_to_g' if it's empty or not provided
+          }
+  
+          const newIngredientData = {
+            name: ingredientNameCapitalized,
+            nutrient_info: newIngredientDetails.nutrient_info,
+            conversion_info: conversionInfo,
+            user_id: currentUser.uid, // Use the current user's UID
+          };
+  
+          // Set the new ingredient document with a specific ID (name)
+          await setDoc(ingredientDocRef, newIngredientData);
+        })(),
+        {
+          pending: 'Adding new ingredient...',
+          success: 'Ingredient added successfully!',
+          error: {
+            render: ({data}) => {
+              // Check if it's the custom error for duplicate ingredient
+              if (data.message === "Ingredient already exists.") {
+                return data.message;
+              }
+              // Fallback for other errors
+              return "Failed to add ingredient.";
+            }
+          }
+        }
+      ).then(() => {
+        // Optionally, reset the form fields and close the modal here
+        setNewIngredientDetails({
+          name: '',
+          nutrient_info: {
+            fat: '',
+            carbs: '',
+            protein: '',
+            calories: '',
+          },
+          conversion_info: {
+            cup_to_g: '',
+            each_to_g: '',
+            tbsp_to_g: '',
+          },
+        });
+        setShowNewIngredientModal(false); // Close the modal
+        fetchIngredientsMaster(); // Refresh the ingredient list to include the newly added ingredient
+
+      }).catch((error) => {
+        console.error("Error adding new ingredient:", error);
+      });
+    } else {
+      toast.error("You must be logged in to add ingredients.");
+    }
+  };
+  
   
   
   
@@ -563,14 +536,25 @@ const closeIngredientModal = () => setShowIngredientModal(false);
   };
   
   
-
-   
+ // Update handleImageChange to set both newImageFile and editImage (for preview)
+const handleImageChange = (event) => {
+  if (event.target.files && event.target.files[0]) {
+      const file = event.target.files[0];
+      setImageFile(file); // Set the file for uploading
+      setImagePreview(URL.createObjectURL(file)); // Set the preview URL
+  }
+};
+  
+  const adjustHeight = (e) => {
+    e.target.style.height = "inherit"; // Reset height to recalculate
+    e.target.style.height = `${e.target.scrollHeight}px`; // Set new height based on content
+  };
  
   // JSX
   return (
     <div className="w-full bg-gray-100">
       <div className="max-w-max mx-auto pt-[7rem] p-7">
-        {!isSignedIn ? (
+        {!currentUser ? (
           <div className="space-y-4">
             <h2 className="text-2xl font-bold mb-4">
               Log In/Sign Up and Add Recipe
@@ -631,7 +615,7 @@ const closeIngredientModal = () => setShowIngredientModal(false);
                 <button
                   className="bg-[#58acbb] transition duration-300 hover:bg-[#3e7983] text-white font-bold py-2 px-4 rounded"
                   type="button"
-                  onClick={isSigningUp ? handleSignUp : handleSignInWithEmail}
+                  onClick={isSigningUp ? handleSignUp : handleSignIn}
                 >
                   {isSigningUp ? "Sign Up" : "Sign In"}
                 </button>
@@ -687,6 +671,7 @@ const closeIngredientModal = () => setShowIngredientModal(false);
     Sign Out
   </button>
 </div>
+<h1 className="text-3xl text-center my-10 text-gray-600">Add Recipe</h1>
 
             <form onSubmit={handleSubmit} className="mt-4 space-y-6">
               <div className="flex flex-col">
@@ -707,29 +692,38 @@ const closeIngredientModal = () => setShowIngredientModal(false);
                 </div>
 
                 <div className="text-gray-600 shadow-md bg-white p-4 mb-8 rounded-lg">
-                  <h3 className="text-xl font-semibold">Recipe Image</h3>
-                  <span className="text-sm">
-                    (leave blank for default image)
-                  </span>
-                  <div>
-                    <input
-                      id="imageUpload"
-                      type="file"
-                      onChange={handleImageChange}
-                      accept="image/*"
-                      ref={fileInputRef} // Add this line
-                      className="text-sm mt-8 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100"
-                    />
-                  </div>
-                </div>
+  <h3 className="text-xl font-semibold">Recipe Image</h3>
+  <span className="text-sm">(leave blank for default image)</span>
+  <div
+    className="mt-4 w-[250px] h-[200px] border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer"
+    onClick={() => fileInputRef.current && fileInputRef.current.click()}
+  >
+    {imagePreview ? (
+      <img src={imagePreview} alt="Preview" className="w-full h-full object-cover rounded-lg" />
+    ) : (
+      <div className="text-center">
+        <p className="text-gray-400">Click to upload image</p>
+      </div>
+    )}
+  </div>
+  <input
+    id="imageUpload"
+    type="file"
+    onChange={handleImageChange}
+    accept="image/*"
+    ref={fileInputRef}
+    className="hidden"
+  />
+</div>
+
 
                 <div className="text-gray-600 shadow-md bg-white p-4 mb-8 rounded-lg">
                   <h3 className="text-xl font-semibold  mb-4">Ingredients</h3>
     
   {ingredients.map((ingredient, index) => (
     <div 
-    key={index}   
-className={`relative flex md:flex-row flex-col sm:items-center mb-4 ${index !== 0 ? "animate-fade-in" : ""}`}>
+    key={index} id={`ingredient-input-${index}`} 
+className={`relative flex md:gap-2 md:flex-row flex-col sm:items-center mb-4 ${index !== 0 ? "animate-fade-in" : "animate-fade-out"}`}>
     
 
       <input
@@ -740,16 +734,19 @@ className={`relative flex md:flex-row flex-col sm:items-center mb-4 ${index !== 
         readOnly
         required
       />
-      <button
-       type="button"
-       onClick={() => {
-         setCurrentIngredientIndex(index);
-         setShowIngredientModal(true);
-        }}
-        className="border border-gray-300 sm:w-1/6 sm:flex-grow bg-white text-gray-400 px-10 py-2 rounded transition duration-300 hover:bg-gray-200 mb-2 sm:mb-0"
-        >
- {ingredient.name || "Choose Ingredient"}     
-  </button>
+  <button
+  type="button"
+  onClick={() => {
+    setCurrentIngredientIndex(index);
+    setShowIngredientModal(true);
+  }}
+  className={`border border-gray-300 sm:w-1/6 sm:flex-grow bg-white px-10 py-2 rounded transition duration-300 hover:bg-gray-200 mb-2 sm:mb-0 ${
+    ingredient.name ? "text-gray-600" : "text-gray-400"
+  }`}
+>
+  {ingredient.name || "Choose Ingredient"}
+</button>
+
   <div className="flex flex-1 sm:flex-row sm:ml-2">
 
       <input
@@ -765,17 +762,17 @@ className={`relative flex md:flex-row flex-col sm:items-center mb-4 ${index !== 
     name="unit"
     value={ingredient.unit}
     onChange={(e) => handleIngredientChange(index, e)}
-    className="text-gray-400 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-200 w-full sm:flex-grow sm:ml-2"
+    className=" p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-200 w-full sm:flex-grow sm:ml-2"
     required
   >
-    <option value="">Unit</option>
+    <option disabled value="">Unit</option>
     {ingredient.availableUnits?.map(unit => (
       <option key={unit} value={unit}>{unit}</option>
     ))}
   </select>
 
       </div>
-      {index > 0 && (
+      {ingredients.length > 1 && (
       <button
         type="button"
         onClick={() => removeIngredientInput(index)}
@@ -804,22 +801,27 @@ className={`relative flex md:flex-row flex-col sm:items-center mb-4 ${index !== 
                 <div className="text-gray-600 shadow-md bg-white p-4 rounded-lg">
                   <h3 className="text-xl font-semibold  mb-4">Instructions</h3>
                    {instructions.map((instruction, index) => (
-  <div key={index} className={`relative mb-2 ${index !== 0 ? "animate-fade-in" : ""}`}>
-  <label
+                    <div 
+    key={index} 
+    id={`instruction-input-${index}`} 
+    className={`relative mb-4 ${index !== 0 ? "animate-fade-in" : ""}`}
+  >  <label
                         className="block text-grey-darker text-sm font-bold mb-2"
                         htmlFor={`instruction-${index}`}
                       >
                         {`Step ${index + 1}`}
                       </label>
-                      <input
-                        id={`instruction-${index}`}
-                        type="text"
-                        value={instruction}
-                        onChange={(e) => handleInstructionChange(index, e)}
-                        placeholder={`Instruction for step ${index + 1}`}
-                        className="text-gray-600 w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200"
-                        required
-                      />
+                      <textarea
+  id={`instruction-${index}`}
+  value={instruction.text}
+  onChange={(e) => handleInstructionChange(index, e)}
+  onInput={adjustHeight}
+  placeholder={`Instruction for step ${index + 1}`}
+  className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none overflow-hidden"
+  required
+  rows="2" // Start with at least two lines
+  style={{ minHeight: '50px' }} // Ensure there's a minimum height if you want
+></textarea>
                {index > 0 && (
       <button
         type="button"

@@ -10,7 +10,7 @@ import RecipeDetail from './routes/RecipeDetail';
 import AddRecipe from './routes/AddRecipe';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { AuthProvider } from './components/AuthProvider'; // Update this path to the correct one
+import { AuthProvider } from './AuthProvider'; // Update this path to the correct one
 
 
 

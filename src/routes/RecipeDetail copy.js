@@ -42,41 +42,72 @@ export default function RecipeDetail() {
     availableUnits: [] // Initialize this as an empty array
   }]);
 
+  function convertToAllUnits(quantity, unit, conversionInfo) {
+    // Define all supported units dynamically based on conversionInfo
+    const units = ['g', 'cups', 'tbsp'];
+    if (conversionInfo.each_to_g) {
+      units.push('pieces'); // Include 'pieces' only if each_to_g is present
+    }
+  
+    const conversionResult = {};
+  
+    // Convert quantity to grams first if it's not already in grams
+    let quantityInGrams = unit === 'g' ? quantity : convertToGrams(quantity, unit, conversionInfo);
+  
+    // Store grams conversion
+    conversionResult['g'] = quantityInGrams;
+  
+    // Convert grams to all other units
+    units.forEach((targetUnit) => {
+      if (targetUnit === 'g') {
+        conversionResult[targetUnit] = parseFloat(quantityInGrams).toFixed(1); // Ensure grams are also formatted
+      } else {
+        conversionResult[targetUnit] = convertFromGrams(quantityInGrams, targetUnit, conversionInfo).toFixed(1);
+      }
+    });
+  
+    return conversionResult;
+  }
+  
+  function convertToGrams(quantity, unit, conversionInfo) {
+    switch (unit) {
+      case 'cups': return quantity * conversionInfo.cup_to_g;
+      case 'tbsp': return quantity * conversionInfo.tbsp_to_g;
+      case 'pieces': return conversionInfo.each_to_g ? quantity * conversionInfo.each_to_g : quantity;
+      default: return quantity; // Return the original quantity if it's already in grams or unsupported unit
+    }
+  }
+  
+  function convertFromGrams(quantity, unit, conversionInfo) {
+    switch (unit) {
+      case 'cups': return quantity / conversionInfo.cup_to_g;
+      case 'tbsp': return quantity / conversionInfo.tbsp_to_g;
+      case 'pieces': return conversionInfo.each_to_g ? quantity / conversionInfo.each_to_g : quantity;
+      default: return quantity; // This case should never be reached since 'g' is filtered out
+    }
+  }
+  
   const [currentUnits, setCurrentUnits] = useState({});
   // Assuming these are the units you want to cycle through
   const switchUnit = (ingredientName) => {
-    const ingredient = userIngredients.find(ing => ing.name === ingredientName);
-    if (!ingredient) return; // Ensure the ingredient exists
-    
-    const conversionInfo = ingredient?.conversion_info;
-    const currentUnit = currentUnits[ingredientName] || ingredient.unit; // Fallback to the ingredient's unit if not set
-    
-    const nextUnit = getNextUnit(currentUnit, conversionInfo);
-    console.log(`Current unit for ${ingredientName}:`, currentUnit);
-    console.log(`Next unit for ${ingredientName}:`, nextUnit);
+    setRecipe(prevRecipe => {
+      const ingredients = prevRecipe.ingredients.map(ingredient => {
+        if (ingredient.name === ingredientName) {
+          const currentUnitIndex = Object.keys(ingredient.conversions).indexOf(ingredient.currentUnit || ingredient.unit);
+          const nextUnitIndex = (currentUnitIndex + 1) % Object.keys(ingredient.conversions).length;
+          const nextUnit = Object.keys(ingredient.conversions)[nextUnitIndex];
   
-    if (!nextUnit) return; // Sanity check to prevent setting undefined
-    
-    // Update the state with the new unit
-    setCurrentUnits(prevUnits => ({
-      ...prevUnits,
-      [ingredientName]: nextUnit,
-    }));
+          return {
+            ...ingredient,
+            currentUnit: nextUnit,
+            quantity: ingredient.conversions[nextUnit]
+          };
+        }
+        return ingredient;
+      });
   
-    // Here you need to get the correct quantity to convert based on the current unit from the recipe
-    const ingredientInRecipe = recipe.ingredients.find(i => i.name === ingredientName);
-    console.log(`Original quantity for ${ingredientName} before conversion:`, ingredientInRecipe.quantity);
-
-    const newQuantity = convertQuantity(ingredientInRecipe.quantity, currentUnit, nextUnit, conversionInfo);
-    console.log(`New quantity for ${ingredientName} after conversion to ${nextUnit}:`, newQuantity);
-
-    // Update the recipe with the new unit and quantity
-    setRecipe(prevRecipe => ({
-      ...prevRecipe,
-      ingredients: prevRecipe.ingredients.map(ing => 
-        ing.name === ingredientName ? { ...ing, quantity: newQuantity, unit: nextUnit } : ing
-      ),
-    }));
+      return { ...prevRecipe, ingredients };
+    });
   };
   
   
@@ -90,60 +121,6 @@ const getNextUnit = (currentUnit, conversionInfo) => {
   const nextIndex = (currentIndex + 1) % units.length; // Wrap around to the first unit
   return units[nextIndex];
 };
-
-const convertQuantity = (quantity, fromUnit, toUnit, conversionInfo) => {
-  if (!conversionInfo || fromUnit === toUnit) {
-      return quantity;
-  }
-
-  let quantityInGrams = quantity; // Start with the assumption that quantity might already be in grams.
-
-  // Convert from the original unit to grams first if needed
-  if (fromUnit !== 'g') {
-      switch (fromUnit) {
-          case 'cups':
-              quantityInGrams = quantity * (conversionInfo.cup_to_g || 0);
-              break;
-          case 'tbsp':
-              quantityInGrams = quantity * (conversionInfo.tbsp_to_g || 0);
-              break;
-          case 'pieces':
-              quantityInGrams = quantity * (conversionInfo.each_to_g || 0);
-              break;
-          // Add more cases as necessary
-      }
-      console.log(quantityInGrams);
-  }
-
-  // Now convert from grams to the target unit
-  let convertedQuantity = quantityInGrams; // Assume conversion might end up with the value in grams
-
-  if (toUnit !== 'g') { // Check if the target unit is not grams
-      switch (toUnit) {
-          case 'cups':
-              convertedQuantity = quantityInGrams * conversionInfo.cup_to_g  / (conversionInfo.cup_to_g || 1);
-              break;
-          case 'tbsp':
-              convertedQuantity = quantityInGrams * conversionInfo.tbsp_to_g  / (conversionInfo.tbsp_to_g || 1);
-              break;
-          case 'pieces':
-              convertedQuantity = quantityInGrams * conversionInfo.each_to_g  / (conversionInfo.each_to_g || 1);
-              break;
-          // Add more cases as necessary
-      }
-      console.log(quantityInGrams);
-
-  }
-
-  // Log for debugging
-
-  return convertedQuantity.toFixed(2); // Format the result to 2 decimal places
-};
-
-
-
-
-
 
   
 // Example function that matches recipe ingredients with master ingredients to append conversion info
@@ -307,20 +284,19 @@ const handleIngredientSelection = (ingredientName) => {
       }
   
       if (data) {
-        // Check if instructions are an array and convert to string if needed
-        if (Array.isArray(data.instructions)) {
-          data.instructions = data.instructions
-            .map((instr, index) => `Step ${index + 1}: ${instr}`)
-            .join("\n");
-        }
+        // Ensure data.ingredients is an array
+        const ingredients = typeof data.ingredients === 'string' ? JSON.parse(data.ingredients) : data.ingredients;
   
-        try {
-          data.ingredients = JSON.parse(data.ingredients);
-        } catch (e) {
-          console.error("Error parsing ingredients", e);
-          data.ingredients = [];
-        }
-  
+        const enrichedIngredients = ingredients.map(ingredient => {
+          const conversionInfo = userIngredients.find(ui => ui.name === ingredient.name)?.conversion_info;
+          if (conversionInfo) {
+            return {
+              ...ingredient,
+              conversions: convertToAllUnits(ingredient.quantity, ingredient.unit, conversionInfo)
+            };
+          }
+          return ingredient;
+        });
         let imageUrl;
         if (data.image_url) {
           const { data: imgData, error: imgError } = await supabase.storage
@@ -332,19 +308,12 @@ const handleIngredientSelection = (ingredientName) => {
           imageUrl = placeholderImg;
         }
   
-        setRecipe({ ...data, image: imageUrl });
+        setRecipe({ ...data, ingredients: enrichedIngredients, image: imageUrl  });
       }
-        
-    const initialUnits = {};
-    data.ingredients.forEach(ing => {
-      initialUnits[ing.name] = 'g';
-    });
-    setCurrentUnits(initialUnits);
     };
   
-
     fetchRecipe();
-}, [recipeId]);
+  }, [recipeId, userIngredients]);
 
 
 
@@ -444,39 +413,41 @@ const handleIngredientSelection = (ingredientName) => {
     // Join the instructions array into a single string
     const instructionsString = editInstructions.join("\n");
   
-    let imageUrl = recipe.image_url; // Default to the current image URL in the database
-  
-    if (newImageFile) {
-      // Check and delete old image if it exists
-      if (recipe.image_url) {
-        try {
-          const oldFilePath = recipe.image_url;
-          await supabase.storage.from("recipe-pics").remove([oldFilePath]);
-        } catch (error) {
-          console.error("Error deleting old image:", error);
-          // Handle the error appropriately
-        }
-      }
-  
-      // Handle new image file upload
-      const fileExtension = newImageFile.name.split(".").pop();
-      const fileName = `${uuidv4()}.${fileExtension}`;
-      const filePath = `recipeImages/${fileName}`;
-  
+    // Initialize imageUrl based on existing condition or fallback to placeholderImg
+  let imageUrl = recipe.image_url || placeholderImg;
+
+  if (newImageFile) {
+    // If there's an old image URL and it's not the placeholder, attempt to delete it
+    if (recipe.image_url && recipe.image_url !== placeholderImg) {
       try {
-        const { error: uploadError } = await supabase.storage
-          .from("recipe-pics")
-          .upload(filePath, newImageFile);
-  
-        if (uploadError) throw uploadError;
-  
-        imageUrl = filePath; // Update imageUrl to the path of the new image
+        const oldFilePath = recipe.image_url;
+        await supabase.storage.from("recipe-pics").remove([oldFilePath]);
       } catch (error) {
-        console.error("Error uploading new image:", error);
-        return;
+        console.error("Error deleting old image:", error);
       }
     }
-  
+
+    // Handle new image file upload
+    const fileExtension = newImageFile.name.split(".").pop();
+    const fileName = `${uuidv4()}.${fileExtension}`;
+    const filePath = `recipeImages/${fileName}`;
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("recipe-pics")
+        .upload(filePath, newImageFile);
+
+      if (uploadError) throw uploadError;
+
+      // Successfully uploaded new image, update imageUrl to the new path
+      imageUrl = filePath;
+    } catch (error) {
+      console.error("Error uploading new image:", error);
+      // Fallback to placeholder image if upload fails
+      imageUrl = placeholderImg;
+    }
+  }
+
     // Proceed with updating the recipe in the database
     try {
       const { error } = await supabase
@@ -485,7 +456,7 @@ const handleIngredientSelection = (ingredientName) => {
           title: editTitle,
           ingredients: JSON.stringify(editIngredients),
           instructions: instructionsString, // Use the joined string of instructions
-          image_url: imageUrl, // Update with the new image file path or existing path
+          image_url: imageUrl !== placeholderImg ? imageUrl : null, // Update DB field or set null if using placeholder
         })
         .eq("id", recipeId);
   
@@ -502,14 +473,14 @@ const handleIngredientSelection = (ingredientName) => {
         ingredients: editIngredients,
         instructions: instructionsString, // Update the state with the new instructions string
         image_url: imageUrl,
-        image: urlData?.publicUrl, // Update local state with new image URL for display
+      image: imageUrl === placeholderImg ? placeholderImg : urlData?.publicUrl,
       });
 
       setIsTransitioning(true);
       setTimeout(() => {
         setIsEditing(false);
         setIsTransitioning(false);
-      }, 400); // Duration of the fade-in transition
+      }, 200); // Duration of the fade-in transition
       setTimeout(() => {
       setIsEditing(false);
     }, 200); // Duration of the fade-in transition
@@ -552,7 +523,7 @@ const handleIngredientSelection = (ingredientName) => {
   <div className={`transition-opacity duration-300 ease-in-out ${!isTransitioning ? 'opacity-100' : 'opacity-0'}`}>
   <form onSubmit={handleFormSubmit}> {/* Wrap in form and handle on submit */}
 
-              <div className="z-0 bg-white z-10 sticky top-[4rem] py-5 right-0 flex gap-2">
+              <div className="z-0 bg-white z-0 sticky top-[4rem] py-5 right-0 flex gap-2">
   <button
   type="submit"
   className="flex flex-row align-center justify-center items-center gap-1 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
@@ -781,28 +752,19 @@ const handleIngredientSelection = (ingredientName) => {
           <div className="bg-green-50 p-4 rounded-lg">
   <h3 className="text-2xl font-semibold text-center mb-2">Ingredients</h3>
   <ul className="max-w-4xl mx-auto">
-    {recipe.ingredients.map((ingredient, index) => {
-      const currentUnit = currentUnits[ingredient.name] || ingredient.unit;
-      const conversionInfo = userIngredients.find(i => i.name === ingredient.name)?.conversion_info;
-      const nextUnit = getNextUnit(currentUnit, conversionInfo);
-      const displayQuantity = conversionInfo
-        ? convertQuantity(ingredient.quantity, ingredient.unit, currentUnit, conversionInfo)
-        : ingredient.quantity;
+  {recipe.ingredients.map((ingredient, index) => (
+  <li key={index} className="flex justify-between items-center border-b border-gray-200 py-2">
+    <span className="text-gray-700">{`${ingredient.name}: ${ingredient.quantity} ${ingredient.currentUnit || ingredient.unit}`}</span>
+    <button
+      onClick={() => switchUnit(ingredient.name)}
+      className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded inline-flex items-center gap-2 text-sm"
+    >
+      <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
+      Switch to {getNextUnit(ingredient.currentUnit || ingredient.unit, ingredient.conversions)}
+    </button>
+  </li>
+))}
 
-      return (
-        <li key={index} className="flex justify-between items-center border-b border-gray-200 py-2">
-          <span className="text-gray-700">{`${ingredient.name}: ${displayQuantity} ${currentUnit}`}</span>
-          <button
-            onClick={() => switchUnit(ingredient.name, nextUnit)}
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded inline-flex items-center gap-2 text-sm"
-            style={{ minWidth: '100px' }} // Ensures buttons have the same width
-          >
-            <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
-            {nextUnit}
-          </button>
-        </li>
-      );
-    })}
   </ul>
 </div>
 

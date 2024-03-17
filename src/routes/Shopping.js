@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { supabase } from "../supabaseClient";
 import placeholderImg from "../assets/images/placeholderImg.png";
 import { AiOutlineMinus, AiOutlinePlus } from "react-icons/ai"; // Import icons for the counter
 import { ArrowPathIcon } from '@heroicons/react/24/outline'; // Example for v2 using an arrow path icon
-
+import { db } from "../firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { useAuth } from '../AuthProvider'; // Ensure this path is correct
 
 
 
 function Shopping() {
-  const [currentUser, setCurrentUser] = useState(null);
+  const { currentUser } = useAuth();
+
+  
   const [recipes, setRecipes] = useState({});
   const [shoppingList, setShoppingList] = useState([]);
 
@@ -25,8 +28,6 @@ function Shopping() {
       [ingredientName]: nextIndex,
     }));
   };
-
-
 
 
 
@@ -64,72 +65,55 @@ function Shopping() {
   
   useEffect(() => {
     const fetchMasterIngredients = async () => {
+      const ingredientsRef = collection(db, "ingredients_master");
+      // Example query - adjust according to your needs
+      const q = query(ingredientsRef);
+
       try {
-        let { data, error } = await supabase
-          .from('ingredients_master')
-          .select('*');
-  
-        if (error) throw error;
-  
-        setMasterIngredients(data);
+        const querySnapshot = await getDocs(q);
+        const fetchedIngredients = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setMasterIngredients(fetchedIngredients);
       } catch (error) {
-        console.error("Error fetching master ingredients:", error.message);
+        console.error("Error fetching ingredients:", error);
       }
     };
-  
+
     fetchMasterIngredients();
   }, []);
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setCurrentUser(session?.user);
-      if (session?.user) {
-        await fetchRecipes(session.user.id);
+    const fetchRecipes = async () => {
+      if (!currentUser) return;
+      const q = query(collection(db, "recipes"), where("user_id", "==", currentUser.uid));
+
+      try {
+        const querySnapshot = await getDocs(q);
+        const formattedData = {};
+        querySnapshot.forEach((doc) => {
+          let recipe = doc.data();
+          recipe.id = doc.id;
+          let imageUrl = recipe.image_url || placeholderImg;
+
+          formattedData[recipe.id] = {
+            title: recipe.title,
+            count: 0,
+            ingredients: recipe.ingredients,
+            imageUrl: imageUrl
+          };
+        });
+
+        setRecipes(formattedData);
+      } catch (error) {
+        console.error("Error fetching recipes:", error);
       }
     };
-    fetchUserData();
-  }, []);
 
-  const fetchRecipes = async (userId) => {
-    const { data, error } = await supabase
-      .from("recipes")
-      .select("*")
-      .eq("user_id", userId);
+    fetchRecipes();
+  }, [currentUser]);
   
-    if (error) {
-      console.error("Error fetching recipes", error);
-      return;
-    }
-  
-    const formattedData = {};
-    for (const recipe of data) {
-      try {
-        let imageUrl = placeholderImg;
-        if (recipe.image_url) {
-          const { data: urlData, error: urlError } = await supabase.storage
-            .from('recipe-pics')
-            .getPublicUrl(recipe.image_url);
-  
-          if (urlData && !urlError) {
-            imageUrl = urlData.publicUrl;
-          }
-        }
-  
-        formattedData[recipe.id] = { // Using recipe.id as key
-          title: recipe.title,
-          count: 0,
-          ingredients: JSON.parse(recipe.ingredients),
-          imageUrl
-        };
-      } catch (e) {
-        console.error(`Error parsing ingredients for recipe ${recipe.title}`, e);
-        formattedData[recipe.id] = { title: recipe.title, count: 0, ingredients: [], imageUrl: placeholderImg };
-      }
-    }
-  
-    setRecipes(formattedData);
-  };
   
   
 
