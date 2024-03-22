@@ -19,6 +19,7 @@ export default function AddRecipe() {
   
   const { currentUser, signUp, signIn, signOutUser, authError, justSignedUp, setJustSignedUp } = useAuth();
   const [imagePreview, setImagePreview] = useState(null);
+  const [bulkIngredientsCSV, setBulkIngredientsCSV] = useState('');
 
   const [removingIndex, setRemovingIndex] = useState(null);
 
@@ -58,6 +59,7 @@ export default function AddRecipe() {
   const [startFadeOut, setStartFadeOut] = useState(false);
 
   const [showNewIngredientModal, setShowNewIngredientModal] = useState(false);
+  const [showNewBulkIngredientModal, setShowNewBulkIngredientModal] = useState(false);
   const [newIngredientDetails, setNewIngredientDetails] = useState({
     name: '',
     nutrient_info: {
@@ -498,6 +500,81 @@ const closeIngredientModal = () => setShowIngredientModal(false);
       toast.error("You must be logged in to add ingredients.");
     }
   };
+  const handleAddBulkIngredient = async () => {
+    if (!currentUser) {
+      toast.error("You must be logged in to add ingredients.");
+      return;
+    }
+  
+    // Wrap the logic in a promise for toast.promise
+    toast.promise(
+      new Promise(async (resolve, reject) => {
+        const lines = bulkIngredientsCSV.trim().split('\n');
+        for (const line of lines) {
+          try {
+            const details = line.split(';').reduce((acc, current) => {
+              const [key, value] = current.split(':').map((el) => el.trim());
+              acc[key] = value;
+              return acc;
+            }, {});
+  
+            const name = details['Name'];
+            const conversionInfo = {
+              cup_to_g: details['cup_to_g'],
+              tbsp_to_g: details['tbsp_to_g'],
+              // Only include each_to_g if it exists
+              ...(details['each_to_g'] && {each_to_g: details['each_to_g']}),
+            };
+            const nutrientInfo = {
+              calories: details['calories'],
+              protein: details['protein'],
+              fat: details['fat'],
+              carbs: details['carbs'],
+            };
+  
+            const ingredientNameCapitalized = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+            const ingredientDocRef = doc(db, "ingredients_master", ingredientNameCapitalized.replace(/ /g, '_'));
+  
+            // Check if ingredient already exists
+            const docSnap = await getDoc(ingredientDocRef);
+            if (docSnap.exists()) {
+              console.log(`${name} already exists.`);
+              continue; // Skip existing ingredients
+            }
+  
+            // Add new ingredient
+            await setDoc(ingredientDocRef, {
+              name: ingredientNameCapitalized,
+              conversion_info: conversionInfo,
+              nutrient_info: nutrientInfo,
+              user_id: currentUser.uid,
+            });
+  
+            console.log(`${name} added successfully.`);
+          } catch (error) {
+            console.error(`Error processing ingredient ${line}:`, error);
+            reject(new Error(`Failed to process ingredient. Check format and try again.`));
+            return; // Exit the loop and function on error
+          }
+        }
+        // Resolve the promise after all ingredients are processed
+        resolve();
+      }),
+      {
+        pending: 'Adding bulk ingredients...',
+        success: 'Bulk ingredients added successfully!',
+        error: 'Error adding some ingredients. Check console for details.'
+      }
+    ).then(() => {
+      // Reset and close the modal after processing all ingredients
+      setBulkIngredientsCSV('');
+      setShowNewBulkIngredientModal(false);
+       fetchIngredientsMaster(); 
+    }).catch((error) => {
+      console.error("Bulk addition error:", error);
+      // Additional error handling if needed
+    });
+  };
   
   
   
@@ -661,6 +738,13 @@ const handleImageChange = (event) => {
     className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983] transition duration-300"
   >
     Add New Ingredient
+  </button>
+  <button
+    type="button"
+    onClick={() => setShowNewBulkIngredientModal(true)}
+    className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983] transition duration-300"
+  >
+    Add Bulk Ingredient
   </button>
   
   <button
@@ -932,6 +1016,29 @@ className={`relative flex md:gap-2 md:flex-row flex-col sm:items-center mb-4 ${i
     </Modal>
 
 )}
+ {showNewBulkIngredientModal && (
+  <Modal showModal={showNewBulkIngredientModal} setShowModal={setShowNewBulkIngredientModal}>
+    <h2 className="text-xl font-semibold mb-4">Add Bulk Ingredients</h2>
+    <textarea
+      className="w-full h-64 p-4 border rounded-md"
+      placeholder={`Example format:
+Name: Apple; cup_to_g: 125; tbsp_to_g: 7.81; each_to_g: 182; calories: 52; protein: 0.3; fat: 0.2; carbs: 14
+Name: Banana; cup_to_g: 150; tbsp_to_g: 9.07; each_to_g: 118; calories: 89; protein: 1.1; fat: 0.3; carbs: 23`}
+      value={bulkIngredientsCSV}
+      onChange={(e) => setBulkIngredientsCSV(e.target.value)}
+    ></textarea>
+    <div className="flex justify-end mt-4">
+      <button
+        onClick={handleAddBulkIngredient}
+        className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983]"
+      >
+        Add Bulk Ingredients
+      </button>
+    </div>
+  </Modal>
+)}
+
+
 
 
 {showIngredientModal && (
