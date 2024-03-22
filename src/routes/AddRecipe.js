@@ -437,7 +437,18 @@ const closeIngredientModal = () => setShowIngredientModal(false);
   const handleAddIngredient = async () => {
     if (currentUser) {
       const ingredientNameCapitalized = newIngredientDetails.name.replace(/\b\w/g, c => c.toUpperCase());
-  
+     // Check if the ingredient name is empty
+  if (!newIngredientDetails.name.trim()) {
+    toast.error("Please fill in the ingredient name.");
+    return; // Exit the function if the name is empty
+  }
+
+  // Check if any of the nutrient info fields are empty
+  const conversionInfoValues = Object.values(newIngredientDetails.conversion_info);
+  if (conversionInfoValues.some(value => !value.trim())) {
+    toast.error("Please fill in all conversion information fields.");
+    return; // Exit the function if any nutrient info field is empty
+  }
       // Define the Firestore collection where you want to add the new ingredient
       const ingredientDocRef = doc(db, "ingredients_master", ingredientNameCapitalized); // Directly referencing the document by name
   
@@ -654,7 +665,7 @@ const handleImageChange = (event) => {
         {!currentUser ? (
           <div className="space-y-4">
             <h2 className="text-2xl font-bold mb-4">
-              Log In/Sign Up and Add Recipe
+              Log In/Sign Up
             </h2>
 
             <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 flex flex-col">
@@ -1076,7 +1087,7 @@ onClick={() => {
       ))}
 
       {/* Conversion Info */}
-      <h3 className="text-lg font-semibold mb-2">Conversion Info</h3>
+      <h3 className="text-lg font-semibold mb-2">Conversion Info <span className="text-teal-600 text-sm">* (Required)</span></h3>
       {Object.keys(newIngredientDetails.conversion_info).map((key) => {
   let placeholderText = '';
   
@@ -1098,6 +1109,7 @@ onClick={() => {
     <input 
       key={key}
       type="number" 
+      required
       placeholder={placeholderText}
       value={newIngredientDetails.conversion_info[key]}
       onChange={(e) => setNewIngredientDetails(prev => ({
