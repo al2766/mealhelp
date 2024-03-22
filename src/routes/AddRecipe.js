@@ -20,6 +20,10 @@ export default function AddRecipe() {
   const { currentUser, signUp, signIn, signOutUser, authError, justSignedUp, setJustSignedUp } = useAuth();
   const [imagePreview, setImagePreview] = useState(null);
   const [bulkIngredientsCSV, setBulkIngredientsCSV] = useState('');
+  const [ingredientNames, setIngredientNames] = useState([]);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showChatGPTModal, setShowChatGPTModal] = useState(false);
+const [chatGPTPrompt, setChatGPTPrompt] = useState('');
 
   const [removingIndex, setRemovingIndex] = useState(null);
 
@@ -578,7 +582,23 @@ const closeIngredientModal = () => setShowIngredientModal(false);
   
   
   
+// This should be inside your component
+
+// Function to generate the ChatGPT prompt
+const generateChatGPTPrompt = () => {
+  const ingredientListText = ingredientNames.map(name => `Name: ${name}`).join("; ");
+  const conditionsText = "Please provide me data for these ingredients in the following format:"; // Add more instructions as needed
+  const formatExample = "Name: Flour (All-purpose); cup_to_g: 125; tbsp_to_g: 7.81; calories: 364; protein: 10; fat: 1; carbs: 76; ..."; // Add more examples as needed
+  const finalPrompt = `${conditionsText}\n${ingredientListText}\n${formatExample}`;
   
+  // Set the generated prompt to state
+  setChatGPTPrompt(finalPrompt);
+  
+  // Close the help modal and show the ChatGPT modal
+  setShowHelpModal(false);
+  setShowChatGPTModal(true);
+};
+
 
   
   
@@ -732,21 +752,30 @@ const handleImageChange = (event) => {
           
           <div className=" rounded-lg">
 <div className="gap-[1em] flex justify-between items-center border-b-2 py-4">
+<div className="grid grid-rows-2 grid-cols-2 gap-4">
   <button
     type="button"
     onClick={() => setShowNewIngredientModal(true)}
-    className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983] transition duration-300"
+    className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983] transition duration-300 col-span-1"
   >
     Add New Ingredient
   </button>
   <button
     type="button"
     onClick={() => setShowNewBulkIngredientModal(true)}
-    className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983] transition duration-300"
+    className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983] transition duration-300 col-span-1"
   >
     Add Bulk Ingredients
   </button>
-  
+  <button
+    type="button"
+    onClick={() => setShowHelpModal(true)}
+    className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983] transition duration-300 col-span-2"
+  >
+    Help Me Add Ingredients
+  </button>
+</div>
+
   <button
     type="button"
     onClick={handleSignOut}
@@ -936,6 +965,85 @@ className={`relative flex md:gap-2 md:flex-row flex-col sm:items-center mb-4 ${i
                 Add Recipe
               </button>
             </form>
+            {showHelpModal && (
+  <Modal showModal={showHelpModal} setShowModal={setShowHelpModal}>
+    <h2 className="text-xl font-semibold mb-4">Input Ingredients</h2>
+    <p className="text-teal-600 mb-5">Enter this prompt in chat gpt, then use the reply to add bulk ingredients</p>
+    <textarea
+      className="w-full h-26 p-4 border rounded-md"
+      placeholder="Enter one ingredient then click enter..."
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          const value = e.target.value.trim();
+          if (value) {
+            setIngredientNames(prevIngredientNames => {
+              console.log([...prevIngredientNames, value]); // Log the updated array for verification
+              return [...prevIngredientNames, value];
+            });
+            e.target.value = ''; // Clear input after adding
+          }
+          e.preventDefault(); // Prevent default to avoid newline
+        }
+      }}
+      
+    ></textarea>
+    <div className="flex flex-col">
+      {ingredientNames.map((name, index) => (
+        <div key={index} className="bg-gray-200 p-2 rounded mt-2">
+          {name}
+        </div>
+      ))}
+    </div>
+    <div className="flex justify-end mt-4">
+    <button
+onClick={() => {
+  // Conditions for the prompt, detailing how each ingredient's data should be formatted
+  const conditions = `Each ingredient MUST INCLUDE cup_to_g and tbsp_to_g no matter what ingredient it is. Force those values even for ingredients that don’t typically get measured in those units like eggs, carrots, etc. Additionally, add each_to_g as well as cup_to_g and tbsp_to_g for ingredients that can be measured as individual pieces like eggs, carrots, apples, chicken breast, etc., but still include cup_to_g and tbsp_to_g for those ingredients.`;
+
+  // Dynamically generate the prompt based on user-added ingredients
+  const ingredientList = ingredientNames.map(name => `Name: ${name};`).join("\n");
+  const generatedPrompt = ingredientNames.length > 0
+  ? `Please provide me data for these ingredients in the following format:\n${ingredientList}\n\nFormat:\nName: Flour (All-purpose); cup_to_g: 125; tbsp_to_g: 7.81; calories: 364; protein: 10; fat: 1; carbs: 76\nName: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein: 0; fat: 0; carbs: 100\nName: Honey; cup_to_g: 340; tbsp_to_g: 21.25; calories: 304; protein: 0.3; fat: 0; carbs: 82\nName: Milk (Whole); cup_to_g: 244; tbsp_to_g: 15.25; calories: 61; protein: 3.15; fat: 3.25; carbs: 4.8\nName: Carrot; each_to_g: 61; cup_to_g: 110; tbsp_to_g: 6.88; calories: 41; protein: 0.93; fat: 0.24; carbs: 9.58\n\nwith these conditions:\n${conditions}`  : "Please add ingredients first.";
+
+  setChatGPTPrompt(generatedPrompt);
+  setIngredientNames([]);
+  setShowHelpModal(false); // Close the help modal
+  setShowChatGPTModal(true); // Open the ChatGPT modal to display the generated prompt
+}}
+
+  className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983]"
+>
+  Help
+</button>
+
+
+    </div>
+  </Modal>
+)}
+
+{showChatGPTModal && (
+  <Modal showModal={showChatGPTModal} setShowModal={setShowChatGPTModal}>
+    <div className="p-4">
+      <h2 className="text-xl font-semibold mb-4">ChatGPT Prompt</h2>
+      <textarea
+        readOnly
+        className="w-full h-64 p-4 border rounded-md mb-4"
+        value={chatGPTPrompt}
+      ></textarea>
+      <button
+        onClick={() => {
+          navigator.clipboard.writeText(chatGPTPrompt);
+          toast.success("Prompt copied to clipboard!");
+        }}
+        className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983]"
+      >
+        Copy
+      </button>
+    </div>
+  </Modal>
+)}
+
+
             {showNewIngredientModal && (
       <Modal showModal={showNewIngredientModal} setShowModal={setShowNewIngredientModal}>
 
