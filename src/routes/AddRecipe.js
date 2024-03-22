@@ -1143,7 +1143,7 @@ onClick={() => {
       className="w-full h-64 p-4 border rounded-md"
       placeholder={`Example format:
 Name: Apple; cup_to_g: 125; tbsp_to_g: 7.81; each_to_g: 182; calories: 52; protein: 0.3; fat: 0.2; carbs: 14
-Name: Banana; cup_to_g: 150; tbsp_to_g: 9.07; each_to_g: 118; calories: 89; protein: 1.1; fat: 0.3; carbs: 23`}
+Name: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein: 0; fat: 0; carbs: `}
       value={bulkIngredientsCSV}
       onChange={(e) => setBulkIngredientsCSV(e.target.value)}
     ></textarea>

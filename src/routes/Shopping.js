@@ -414,7 +414,7 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
           <div className="md:flex flex-row-reverse justify-between p-4">
     <div className="md:mx-10 w-full md:w-[25em] flex flex-col md:flex-row md:space-x-4">
   <div className="flex-1">
-    <div className="p-4 bg-white rounded-lg shadow-lg">
+    <div className="p-4 bg-white  rounded-lg shadow-lg">
     {
   Object.values(recipes).some(recipe => recipe.count > 0) ? (
     <h4 className="text-teal-700 text-lg font-semibold mb-4 border-b-2 border-black-200">
@@ -441,7 +441,7 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
 
         <h2 className="text-2xl text-teal-700 font-bold mb-4 border-b-2 border-black-200">Shopping List</h2>
         {Object.values(recipes).some(recipe => recipe.count > 0) ? (
-          <ul className="list-none">
+          <ul className=" max-h-[25em] overflow-auto list-none">
     {shoppingList.map((itemString, index) => {
   const { name, grams, cups, tablespoons, pieces } = parseQuantityString(itemString);
   // Filter available units based on their existence and value
