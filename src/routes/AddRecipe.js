@@ -731,7 +731,7 @@ const handleImageChange = (event) => {
 
           
           <div className=" rounded-lg">
-<div className="flex justify-between items-center border-b-2 py-4">
+<div className="gap-[1em] flex justify-between items-center border-b-2 py-4">
   <button
     type="button"
     onClick={() => setShowNewIngredientModal(true)}
@@ -744,7 +744,7 @@ const handleImageChange = (event) => {
     onClick={() => setShowNewBulkIngredientModal(true)}
     className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983] transition duration-300"
   >
-    Add Bulk Ingredient
+    Add Bulk Ingredients
   </button>
   
   <button
