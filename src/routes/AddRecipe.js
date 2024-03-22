@@ -968,9 +968,8 @@ className={`relative flex md:gap-2 md:flex-row flex-col sm:items-center mb-4 ${i
             {showHelpModal && (
   <Modal showModal={showHelpModal} setShowModal={setShowHelpModal}>
     <h2 className="text-xl font-semibold mb-4">Input Ingredients</h2>
-    <p className="text-teal-600 mb-5">Enter this prompt in chat gpt, then use the reply to add bulk ingredients</p>
     <textarea
-      className="w-full h-26 p-4 border rounded-md"
+      className="w-full h-36 p-4 border rounded-md"
       placeholder="Enter one ingredient then click enter..."
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
@@ -1025,9 +1024,10 @@ onClick={() => {
   <Modal showModal={showChatGPTModal} setShowModal={setShowChatGPTModal}>
     <div className="p-4">
       <h2 className="text-xl font-semibold mb-4">ChatGPT Prompt</h2>
+      <p className="text-teal-600 mb-5">Enter this prompt in chat gpt, then use the reply to add bulk ingredients</p>
       <textarea
         readOnly
-        className="w-full h-64 p-4 border rounded-md mb-4"
+        className="w-full h-56 p-4 border rounded-md mb-4"
         value={chatGPTPrompt}
       ></textarea>
       <button
