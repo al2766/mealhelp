@@ -541,7 +541,7 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
   <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8 py-5 md:p-4 bg-gray-50 rounded-lg "> 
   {Object.entries(recipes).map(([recipeId, recipe], index) => (
     <div key={recipeId} 
-      className={`relative flex flex-col justify-between p-0 rounded-lg shadow-md transition-opacity duration-300 ease-in-out animate-fadeInUp ${recipe.count > 0 ? 'bg-[#58acbb] opacity-100' : 'bg-white opacity-70 hover:opacity-100'}`}
+      className={`max-h-[16.5em] relative flex flex-col justify-between p-0 rounded-lg shadow-md transition-opacity duration-300 ease-in-out animate-fadeInUp ${recipe.count > 0 ? 'bg-[#58acbb] opacity-100' : 'bg-white opacity-70 hover:opacity-100'}`}
       style={{
         animationDelay: `${index * 100}ms`, // Apply delay directly
         opacity: 0 // Start with item invisible to see animation

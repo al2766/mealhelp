@@ -14,6 +14,9 @@ import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "fire
 
 
 export default function AddRecipe() {
+  const [bulkIngredientsList, setBulkIngredientsList] = useState([]);
+  const ingredientListRef = useRef(null);
+
   const [stepTransition, setStepTransition] = useState('fade-enter'); // Initialize directly with 'fade-enter'
   const [navigationDirection, setNavigationDirection] = useState('forward');
   const { currentUser, signUp, signIn, signOutUser, authError } = useAuth();
@@ -91,14 +94,16 @@ const moveToPreviousBulkStep = () => {
 };
 
 
+
+
 const handleGeneratePrompt = () => {
   // Animation and Navigation setup
   setNavigationDirection('forward');
   setStepTransition('fade-exit');
   setTimeout(() => {
     // Your existing logic
-    const instructions = "Please fill in the data below, estimating the values if you must without using n/a and without changing the format or key names:";
-    const ingredientList = ingredientNames.length > 0 ? `${instructions}\n`+ingredientNames.map(name => `Name: ${name}; cup_to_g: ; tbsp_to_g: ; each_to_g: ;`).join("\n") : "Please add ingredients first.";
+    const instructions = "Please fill in the following template with accurate measurements for each ingredient listed. you must Include 'cup_to_g' for the conversion from cups to grams, 'tbsp_to_g' for tablespoons to grams and, if applicable, append 'each_to_g' for applicable ingredients, whilst still keeping 'cup_to_g' and 'tbsp_to_g'. with the value for the weight of a standard piece or unit in grams or don't append. Here's an empty template to start with:";
+    const ingredientList = ingredientNames.length > 0 ? `${instructions}\n`+ingredientNames.map(name => `Name: ${name}; cup_to_g: 0; tbsp_to_g: 0;`).join("\n") : "Please add ingredients first.";
     const generatedPrompt = `${ingredientList}`;
     setChatGPTPrompt(generatedPrompt);
     setBulkModalStep(1); // Move to the next step
@@ -128,7 +133,60 @@ const handleSubmitBulkIngredients = () => {
   }, 300); // Adjust if you're applying a closing animation
 };
 
+const checkAndApplyScrollMask = (elementRef) => {
+  const element = elementRef.current;
+  if (!element) return;
 
+  const atBottom = element.scrollHeight - element.scrollTop === element.clientHeight;
+
+  if (atBottom) {
+    // If scrolled to the bottom, remove the mask
+    element.classList.remove('scrollable-mask');
+  } else {
+    // If not at the bottom, add the mask if necessary
+    const hasOverflowingContent = element.scrollHeight > element.clientHeight;
+    if (hasOverflowingContent) {
+      element.classList.add('scrollable-mask');
+    } else {
+      element.classList.remove('scrollable-mask');
+    }
+  }
+};
+
+
+useEffect(() => {
+  // Ensure that the DOM element is available before attaching the event listener
+  const listElement = ingredientListRef.current;
+  if (!listElement) return; // <- Add this check
+
+  const handleScroll = () => {
+    // Call the checkAndApplyScrollMask only if listElement exists
+    if (listElement) checkAndApplyScrollMask(ingredientListRef);
+  };
+
+  // Add the event listener
+  listElement.addEventListener('scroll', handleScroll);
+
+  // Initial check
+  checkAndApplyScrollMask(ingredientListRef);
+
+  // Check on window resize
+  const handleResize = () => {
+    if (listElement) checkAndApplyScrollMask(ingredientListRef);
+  };
+  window.addEventListener('resize', handleResize);
+
+  // Cleanup function
+  return () => {
+    if (listElement) {
+      // Ensure the listElement exists before removing the event listener
+      listElement.removeEventListener('scroll', handleScroll);
+    }
+    window.removeEventListener('resize', handleResize);
+  };
+}, [ingredientNames, ingredientListRef]); // Depend on ingredientNames as it affects the content height
+
+  
 const handleKeyDown = (e) => {
   // Handle the Enter key, but not when combined with the Shift key (to allow line breaks)
   if (e.key === 'Enter' && !e.shiftKey) {
@@ -155,6 +213,11 @@ const handlePaste = (e) => {
   }
 };
  
+const removeIngredient = (indexToRemove) => {
+  setIngredientNames((currentIngredients) =>
+    currentIngredients.filter((_, index) => index !== indexToRemove)
+  );
+};
 
   const renderBulkStepContent = () => {
 
@@ -169,26 +232,31 @@ const handlePaste = (e) => {
       case 0:
         // Content for entering ingredients
         return (
-          
-<div className={`modal-content ${animationClass}`}>
+          <div className={`modal-content ${animationClass}`}>
             <h2 className="text-xl font-semibold mb-4">Input Ingredients</h2>
-            
-    <textarea
-      className="w-full h-26 p-4 border rounded-md"
-      placeholder="Enter ingredients (paste or type and hit Enter)..."
-      onKeyDown={handleKeyDown}
-      onPaste={handlePaste}
-    ></textarea>
-    <div className="flex flex-col mt-4">
-      {ingredientNames.map((name, index) => (
-        <div key={index} className="bg-gray-200 p-2 rounded mt-2">
-          {name}
-        </div>
-      ))}
-    </div>
-
-        </div>
+            <textarea
+              className="w-full h-26 p-4 border rounded-md"
+              placeholder="Enter ingredients (paste or type and hit Enter)..."
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+            ></textarea>
+            <div ref={ingredientListRef}  className="flex flex-col mt-4 overflow-auto max-h-[16em] scrollable-mask">
+              {ingredientNames.map((name, index) => (
+                <div key={index} className="flex justify-between items-center bg-gray-200 p-2 rounded mt-2">
+                  <span>{name}</span>
+                  <button
+                    onClick={() => removeIngredient(index)}
+                    className="text-xl bg-gray-200 hover:bg-gray-300 transition duration-300 text-black p-1 rounded"
+                    aria-label={`Remove ${name}`}
+                  >
+                    x
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         );
+      
       case 1:
         // Content for displaying the ChatGPT prompt
         return (
@@ -206,7 +274,7 @@ const handlePaste = (e) => {
           navigator.clipboard.writeText(chatGPTPrompt);
           toast.success("Prompt copied to clipboard!");
         }}
-        className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983]"
+        className="bg-purple-500 hover:bg-purple-700 text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983]"
       >
         Copy
       </button>
@@ -299,7 +367,7 @@ Name: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein
             />
             <button
               onClick={() => window.open(`https://www.google.com/search?q=how+many+grams+in+one+cup+of+${encodeURIComponent(newIngredientDetails.name)}`, '_blank')}
-              className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 w-3/6 rounded inline-flex items-center justify-center"
+              className="bg-purple-500 transition duration-300 hover:bg-purple-700 text-white font-bold py-2 w-3/6 rounded inline-flex items-center justify-center"
             >
               Find Out ?
             </button>
@@ -325,7 +393,7 @@ Name: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein
     />
     <button
       onClick={() => window.open(`https://www.google.com/search?q=how+many+grams+in+one+tablespoon+of+${encodeURIComponent(newIngredientDetails.name)}`, '_blank')}
-      className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 w-3/6 rounded inline-flex items-center justify-center"
+      className="transition duration-300 bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 w-3/6 rounded inline-flex items-center justify-center"
     >
       Find Out ?
     </button>
@@ -352,7 +420,7 @@ Name: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein
   />
   <button
     onClick={() => window.open(`https://www.google.com/search?q=how+many+grams+in+one+piece+of+${encodeURIComponent(newIngredientDetails.name)}`, '_blank')}
-    className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 w-3/6 rounded inline-flex items-center justify-center"
+    className="transition duration-300 bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 w-3/6 rounded inline-flex items-center justify-center"
   >
     Find Out ?
   </button>
@@ -966,7 +1034,7 @@ const handleImageChange = (event) => {
              {isSigningUp ? "Sign Up" : "Sign In"}
            </button>
            <button
-             className="inline-block align-baseline font-bold text-sm text-blue hover:text-blue-darker"
+             className="inline-block align-baseline font-bold text-sm text-blue hover:text-blue-darker transition duration-300"
              type="button"
               onClick={toggleForm}
        >
@@ -1208,17 +1276,17 @@ className={`relative flex md:gap-2 md:flex-row flex-col sm:items-center mb-4 ${i
       </div>
       <div className="modal-footer flex justify-between mt-6 space-x-4"> {/* Increased margin top and space between buttons */}
         {currentStep > 1 && (
-          <button onClick={moveToPreviousStep} className="bg-gray-300 hover:bg-gray-400 text-black font-bold py-2 px-4 rounded">
+          <button onClick={moveToPreviousStep} className="transition duration-300 bg-gray-300 hover:bg-gray-400 text-black font-bold py-2 px-4 rounded">
             Back
           </button>
         )}
         <div className={`${currentStep > 1 ? '' : 'ml-auto'}`}> {/* This line ensures alignment */}
           {currentStep < totalSteps ? (
-            <button onClick={moveToNextStep} className="bg-[#58acbb] hover:bg-[#3e7983] text-white font-bold py-2 px-4 rounded">
+            <button onClick={moveToNextStep} className="transition duration-300 bg-[#58acbb] hover:bg-[#3e7983] text-white font-bold py-2 px-4 rounded">
               Next
             </button>
           ) : (
-            <button onClick={handleAddIngredient} className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+            <button onClick={handleAddIngredient} className="transition duration-300 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
               
               Submit
             </button>
@@ -1244,7 +1312,7 @@ className={`relative flex md:gap-2 md:flex-row flex-col sm:items-center mb-4 ${i
   {bulkModalStep > 0 ? (
     <button
     onClick={moveToPreviousBulkStep}
-      className="bg-gray-300 hover:bg-gray-400 text-black font-bold py-2 px-4 rounded"
+      className="transition duration-300 bg-gray-300 hover:bg-gray-400 text-black font-bold py-2 px-4 rounded"
     >
       Back
     </button>
@@ -1255,7 +1323,7 @@ className={`relative flex md:gap-2 md:flex-row flex-col sm:items-center mb-4 ${i
     {bulkModalStep === 0 && (
       <button
         onClick={handleGeneratePrompt}
-        className="bg-[#58acbb] hover:bg-[#3e7983] text-white font-bold py-2 px-4 rounded"
+        className="transition duration-300 bg-[#58acbb] hover:bg-[#3e7983] text-white font-bold py-2 px-4 rounded"
       >
         Next
       </button>
@@ -1271,7 +1339,7 @@ className={`relative flex md:gap-2 md:flex-row flex-col sm:items-center mb-4 ${i
     {bulkModalStep === 2 && (
       <button
         onClick={handleSubmitBulkIngredients}
-        className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+        className="transition duration-300 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
       >
         Add Ingredients
       </button>
@@ -1314,7 +1382,7 @@ className={`relative flex md:gap-2 md:flex-row flex-col sm:items-center mb-4 ${i
             <button
               key={index}
               onClick={() => handleIngredientSelection(ingredientObj.name)}
-              className="flex items-center justify-center bg-white border border-gray-200 text-gray-700 transition duration-300 hover:bg-gray-50 px-3 py-2 rounded shadow-sm text-sm transition duration-150"
+              className="flex items-center justify-center bg-white border border-gray-200 text-gray-700 transition duration-300 hover:bg-gray-50 px-3 py-2 rounded shadow-sm text-sm transition duration-300"
             >
               {ingredientObj.name}
             </button>
