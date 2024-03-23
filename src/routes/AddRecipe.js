@@ -250,7 +250,7 @@ Name: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein
 <div className={`modal-content ${stepTransition} ${navigationDirection === 'forward' ? 'fade-enter' : 'fade-enter-reverse'}`}>
 
           <div className="flex flex-col items-center gap-4">
-          <h2 className="text-xl font-semibold mb-4">Ingredient Name</h2>
+          <h2 className="text-gray-600 text-xl font-semibold mb-4">Ingredient Name</h2>
           <div className="py-5">
           <input
             type="text"
@@ -269,7 +269,7 @@ Name: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein
 <div className={`modal-content ${stepTransition} ${navigationDirection === 'forward' ? 'fade-enter' : 'fade-enter-reverse'}`}>
 
           <div className="flex gap-4 flex-col items-center">
-          <h2 className="text-xl font-semibold mb-4">Grams in 1 Cup</h2>
+          <h2 className="text-gray-600 text-xl font-semibold mb-4">Grams in 1 Cup</h2>
           <div className="flex items-center justify-between space-x-2 w-full py-5">
             <input
               type="number"
@@ -280,7 +280,7 @@ Name: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein
             />
             <button
               onClick={() => window.open(`https://www.google.com/search?q=how+many+grams+in+one+cup+of+${encodeURIComponent(newIngredientDetails.name)}`, '_blank')}
-              className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 w-3/6 rounded inline-flex items-center justify-center"
+              className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 w-3/6 rounded inline-flex items-center justify-center"
             >
               Find Out ?
             </button>
@@ -295,7 +295,7 @@ Name: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein
 <div className={`modal-content ${stepTransition} ${navigationDirection === 'forward' ? 'fade-enter' : 'fade-enter-reverse'}`}>
 
           <div className="flex gap-4 flex-col items-center">
-          <h2 className="text-xl font-semibold mb-4">Grams in 1 Tbsp</h2>
+          <h2 className="text-gray-600 text-xl font-semibold mb-4">Grams in 1 Tbsp</h2>
   <div className="flex items-center justify-between space-x-2 w-full py-5">
     <input
       type="number"
@@ -306,7 +306,7 @@ Name: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein
     />
     <button
       onClick={() => window.open(`https://www.google.com/search?q=how+many+grams+in+one+tablespoon+of+${encodeURIComponent(newIngredientDetails.name)}`, '_blank')}
-      className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 w-3/6 rounded inline-flex items-center justify-center"
+      className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 w-3/6 rounded inline-flex items-center justify-center"
     >
       Find Out ?
     </button>
@@ -321,7 +321,7 @@ Name: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein
 
           <div className="flex gap-2">
           <div className="flex flex-col gap-4 items-center ">
-          <h2 className="text-xl font-semibold mb-4">Grams per piece (optional)</h2>
+          <h2 className="text-gray-600 text-xl font-semibold mb-4">Grams per piece (optional)</h2>
                          
                          <div className="flex flex-row items-center justify-between space-x-2 py-5 w-full">
   <input
@@ -333,7 +333,7 @@ Name: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein
   />
   <button
     onClick={() => window.open(`https://www.google.com/search?q=how+many+grams+in+one+piece+of+${encodeURIComponent(newIngredientDetails.name)}`, '_blank')}
-    className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 w-3/6 rounded inline-flex items-center justify-center"
+    className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 w-3/6 rounded inline-flex items-center justify-center"
   >
     Find Out ?
   </button>
@@ -348,7 +348,7 @@ Name: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein
 <div className={`modal-content ${stepTransition} ${navigationDirection === 'forward' ? 'fade-enter' : 'fade-enter-reverse'}`}>
 
           <div className="flex flex-col items-center justify-center space-y-4 bg-white rounded-lg shadow">
-          <h2 className="text-xl font-semibold mb-4">Confirm Details</h2>
+          <h2 className="text-xl text-gray-600 font-semibold mb-4">Confirm Details</h2>
             <div className="text-center p-4 bg-gray-100 rounded-lg w-full">
               <p className="pb-2 border-b border-gray-300"><strong>Name:</strong> {newIngredientDetails.name}</p>
               <p className="py-2 border-b border-gray-300"><strong>Grams in 1 Cup:</strong> {newIngredientDetails.conversion_info.cup_to_g}</p>
