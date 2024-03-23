@@ -459,7 +459,6 @@ const handleTextAreaInput = (e, index) => {
 };
 
 
-const columnsClass = recipe.ingredients.length > 4 ? 'grid-cols-2' : 'grid-cols-1';
 
 
   return (
@@ -660,7 +659,7 @@ const columnsClass = recipe.ingredients.length > 4 ? 'grid-cols-2' : 'grid-cols-
       />
 
       {/* Ingredients list */}
-      <div className="grid grid-cols-3 gap-4 overflow-y-auto max-h-64">
+      <div className="grid grid-cols-3 gap-4 overflow-y-auto max-h-64 scrollable-mask">
         {userIngredients
           .filter(ingredient => ingredient.name.toLowerCase().includes(searchQuery.toLowerCase()))
           .map((ingredient, index) => (
@@ -735,7 +734,8 @@ const columnsClass = recipe.ingredients.length > 4 ? 'grid-cols-2' : 'grid-cols-
           <div className="bg-white shadow-md p-4 rounded-lg">
   <h3 className="text-2xl font-semibold text-center mb-2">Ingredients</h3>
   
-  <div className="grid max-h-[20em] md:max-h-[40em] overflow-auto md:grid-cols-2 gap-4">
+  <div className="grid max-h-[20em] md:max-h-[40em] overflow-auto md:grid-cols-2 gap-4 scrollable-mask2">
+ 
     {recipe.ingredients.map((ingredient, index) => (
       <div key={index} className="flex items-center border-b border-gray-200 py-2">
         <div className="flex-grow">
@@ -744,8 +744,10 @@ const columnsClass = recipe.ingredients.length > 4 ? 'grid-cols-2' : 'grid-cols-
         <button
           onClick={() => switchUnit(ingredient.name)}
           className="ml-2 bg-[#58acbb] hover:bg-[#3e7983] text-white font-bold py-1 px-3 rounded text-sm"
-        >
-          Switch Unit
+          title="Switch Unit" // Adding a title for accessibility
+          >
+            
+             <ArrowPathIcon className="h-5 w-5" />
         </button>
       </div>
     ))}

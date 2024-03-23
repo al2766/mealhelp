@@ -1286,7 +1286,7 @@ className={`relative flex md:gap-2 md:flex-row flex-col sm:items-center mb-4 ${i
       />
 
       {/* Ingredients list */}
-      <div className="grid grid-cols-3 gap-4 overflow-y-auto max-h-64">
+      <div className="grid grid-cols-3 gap-4 overflow-y-auto max-h-64 scrollable-mask">
         {masterIngredients
           .filter((ingredientObj) =>
             ingredientObj.name.toLowerCase().includes(searchQuery.toLowerCase())

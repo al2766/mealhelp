@@ -5,6 +5,12 @@ module.exports = {
   ],
   theme: {
     extend: {
+      animationDelay: { // This is custom, Tailwind doesn't support it by default
+        'delay-100': '100ms',
+        'delay-200': '200ms',
+        'delay-300': '300ms',
+        // Add more as needed
+      },
       width: {
         '80': '20rem', // This adds a 'w-80' utility class with a value of 20rem
       },
@@ -55,6 +61,14 @@ module.exports = {
           from: { transform: 'translateX(50%)', opacity: 0 },
           to: { transform: 'translateX(0%)', opacity: 1 },
         },
+        fadeInUp: {
+          '0%': { opacity: '0', transform: 'translateY(10%)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        fadeInDown: {
+          '0%': { opacity: '0', transform: 'translateY(-10%)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',
@@ -63,10 +77,14 @@ module.exports = {
         'fade-out-and-collapse': 'fadeOutAndCollapse 0.5s ease-out forwards',
         'slide-fade-out': 'slideFadeOut 0.5s forwards',
         'slide-fade-in': 'slideFadeIn 0.5s forwards',
+        'fadeInUp': 'fadeInUp 0.5s ease-out forwards', // Add 'forwards' here
+        'fadeInDown': 'fadeInDown 0.5s ease-out',
 
 
       },
     },
   },
-  plugins: [],
+  plugins: [
+    require('tailwindcss-animation-delay'), // Make sure to install this plugin
+  ],
 }

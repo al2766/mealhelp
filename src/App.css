@@ -78,3 +78,17 @@
   transition: max-height 0.5s ease-out;
   overflow: hidden; /* Prevent content from overflowing during transition */
 }
+
+.scrollable-mask {
+  mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+}
+
+
+@media (max-width: 767px) {
+  .scrollable-mask2 {
+    /* Your mask styling here */
+    display: block;
+    mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+  }
+}
+

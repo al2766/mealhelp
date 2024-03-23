@@ -42,19 +42,30 @@ function Home() {
         {currentUser ? (
           recipes.length > 0 ? (
             <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-8">
-              {recipes.map(recipe => (
-                <li key={recipe.id} className="rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 ease-in-out">
-                  <div className="relative">
-                    <Link to={`/recipes/${recipe.id}`} className="block">
-                      <img src={recipe.image_url} alt={recipe.title} className="w-full h-[10rem] object-cover" />
-                      <div className="p-4">
-                        <h2 className="text-lg font-semibold text-green-800 mb-2">{recipe.title}</h2>
-                      </div>
-                    </Link>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            {recipes.map((recipe, index) => (
+              <li
+                key={recipe.id}
+                className={`rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 ease-in-out animate-fadeInUp`}
+                style={{
+                  animationDelay: `${index * 100}ms`, // Apply delay directly
+                  opacity: 0 // Start with item invisible to see animation
+                }}
+              >
+                <div className="relative">
+                  <Link to={`/recipes/${recipe.id}`} className="block">
+                    <img src={recipe.image_url} alt={recipe.title} className="w-full h-[10rem] object-cover" />
+                    <div className="p-4">
+                      <h2 className="text-lg font-semibold text-green-800 mb-2">{recipe.title}</h2>
+                    </div>
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+          
+          
+          
+          
           ) : (
             <div className="text-center">Please add some recipes.</div>
           )

@@ -29,7 +29,7 @@ const Modal = ({ showModal, setShowModal, children }) => {
   return (
     showModal && (
       <div
-        className={`fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center ${animationClass}`}
+        className={`fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50 ${animationClass}`}
         onClick={handleCloseModal}
       >
         <div

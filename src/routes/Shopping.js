@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import placeholderImg from "../assets/images/placeholderImg.png";
 import { AiOutlineMinus, AiOutlinePlus } from "react-icons/ai"; // Import icons for the counter
 import { ArrowPathIcon } from '@heroicons/react/24/outline'; // Example for v2 using an arrow path icon
@@ -10,8 +10,10 @@ import { useAuth } from '../AuthProvider'; // Ensure this path is correct
 
 function Shopping() {
   const { currentUser } = useAuth();
+  const selectedRecipesRef = useRef(null);
 
-  
+  const listRef = useRef(null);
+
   const [recipes, setRecipes] = useState({});
   const [shoppingList, setShoppingList] = useState([]);
 
@@ -403,7 +405,57 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
     }));
   };
   
+  const checkAndApplyScrollMask = (elementRef) => {
+    const element = elementRef.current;
+    if (!element) return;
+  
+    const atBottom = element.scrollHeight - element.scrollTop === element.clientHeight;
+  
+    if (atBottom) {
+      // If scrolled to the bottom, remove the mask
+      element.classList.remove('scrollable-mask');
+    } else {
+      // If not at the bottom, add the mask if necessary
+      const hasOverflowingContent = element.scrollHeight > element.clientHeight;
+      if (hasOverflowingContent) {
+        element.classList.add('scrollable-mask');
+      } else {
+        element.classList.remove('scrollable-mask');
+      }
+    }
+  };
+  
+  
+  useEffect(() => {
+    if (!listRef.current) return; // Add this check
+  
+    const handleScroll = () => checkAndApplyScrollMask(listRef);
+    const listElement = listRef.current;
+  
+    listElement.addEventListener('scroll', handleScroll);
+  
+    checkAndApplyScrollMask(listRef); // Initial check
+  
+    // Clean up
+    return () => {
+      if (listElement) { // Ensure listElement exists before trying to remove the event listener
+        listElement.removeEventListener('scroll', handleScroll);
+      }
+    };
+  }, [listRef, shoppingList]); // Adjusted for shoppingList useEffect
+  
+  
+  
 
+  useEffect(() => {
+    checkAndApplyScrollMask(selectedRecipesRef);
+  
+    // You may also want to re-check on window resize
+    const handleResize = () => checkAndApplyScrollMask(selectedRecipesRef);
+    window.addEventListener('resize', handleResize);
+  
+    return () => window.removeEventListener('resize', handleResize);
+  }, [selectedRecipesRef, recipes]); // Depend on recipes as it affects the content of selected recipes
   
 
   return (
@@ -417,16 +469,16 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
     <div className="p-4 bg-white  rounded-lg shadow-lg">
     {
   Object.values(recipes).some(recipe => recipe.count > 0) ? (
-    <h4 className="text-teal-700 text-lg font-semibold mb-4 border-b-2 border-black-200">
+    <h4 className="text-gray-600 text-lg font-semibold mb-4 border-b-2 border-black-200">
       Selected Recipes
     </h4>
   ) : null
 }
       <div className="flex-grow">
-      <ul className="list-none pl-0 mb-4">
+      <ul className="list-none pl-0 mb-4 max-h-[8em] overflow-auto" ref={selectedRecipesRef}>
   {Object.entries(recipes).map(([recipeId, recipe]) =>
    recipe.count > 0 && (
-    <li key={recipeId} className="rounded animate-fade-in p-2 mb-2 flex items-center gap-2 bg-gray-100">
+    <li key={recipeId} className="rounded animate-fade-in p-2 mb-2 flex items-center gap-2">
       <span className="bg-gray-500 text-white py-1 px-2 rounded">
         x{recipe.count}
       </span>
@@ -439,9 +491,9 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
   )}
 </ul>
 
-        <h2 className="text-2xl text-teal-700 font-bold mb-4 border-b-2 border-black-200">Shopping List</h2>
+        <h3 className="text-xl text-gray-600 font-bold pb-2 mb-4 border-b-2 border-black-200">Shopping List</h3>
         {Object.values(recipes).some(recipe => recipe.count > 0) ? (
-          <ul className=" max-h-[25em] overflow-auto list-none">
+          <ul className=" max-h-[20.5em] overflow-auto list-none" ref={listRef}>
     {shoppingList.map((itemString, index) => {
   const { name, grams, cups, tablespoons, pieces } = parseQuantityString(itemString);
   // Filter available units based on their existence and value
@@ -458,11 +510,11 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
   const nextUnit = availableUnits[(currentIndex + 1) % availableUnits.length];
 
   return (
-    <li key={index} className="animate-fade-in flex justify-between gap-3 items-center p-2 mb-1 bg-gray-100 rounded">
+    <li key={index} className="animate-fade-in flex justify-between gap-3 items-center p-2 mb-1 rounded">
       <span className="font-bold">{name}: {unitValue}</span>
       <button 
         onClick={() => cycleUnit(name, availableUnits)}
-        className="py-1 px-2 rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors flex items-center gap-2"
+        className="py-1 px-2 rounded text-white bg-[#58acbb] hover:bg-[#478a9b] transition-colors flex items-center gap-2"
       >
         <ArrowPathIcon className="h-5 w-5" aria-hidden="true" />
         {nextUnit.charAt(0).toUpperCase() + nextUnit.slice(1)}
@@ -475,7 +527,7 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
     
           </ul>
         ) : (
-          <div>Please select some recipes.</div>
+          <div className="text-gray-400">Please select some recipes.</div>
         )}
       </div>
     </div>
@@ -486,10 +538,14 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
 
   
 
-  <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8 py-5 md:p-4 bg-gray-50 rounded-lg md:shadow-lg">  {Object.entries(recipes).map(([recipeId, recipe], index) => (
+  <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8 py-5 md:p-4 bg-gray-50 rounded-lg "> 
+  {Object.entries(recipes).map(([recipeId, recipe], index) => (
     <div key={recipeId} 
-         className={`relative flex flex-col justify-between p-0 rounded-lg shadow-md transition-opacity duration-300 ease-in-out ${recipe.count > 0 ? 'bg-[#58acbb] opacity-100' : 'bg-white opacity-70 hover:opacity-100'}`}>
-      <img src={recipe.imageUrl || placeholderImg} alt={recipe.title} className="w-full h-[7rem] md:h-[10em] object-cover" />
+      className={`relative flex flex-col justify-between p-0 rounded-lg shadow-md transition-opacity duration-300 ease-in-out animate-fadeInUp ${recipe.count > 0 ? 'bg-[#58acbb] opacity-100' : 'bg-white opacity-70 hover:opacity-100'}`}
+      style={{
+        animationDelay: `${index * 100}ms`, // Apply delay directly
+        opacity: 0 // Start with item invisible to see animation
+      }}     >  <img src={recipe.imageUrl || placeholderImg} alt={recipe.title} className="w-full h-[7rem] md:h-[10em] object-cover" />
       <div className="px-3 py-[0.4rem] py-0 flex-grow">
         <h2 className={`${recipe.count > 0 ? 'text-white' : 'text-green-800'} text-lg font-semibold mb-2`}>
           {recipe.title}
