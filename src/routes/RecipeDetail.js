@@ -123,6 +123,7 @@ function calculateConversions(initialQuantity, conversionInfo, initialUnit) {
   }
 
   const conversions = {};
+  console.log(conversions)
 
   // Check and calculate conversions for all units from grams
   if (conversionInfo.cup_to_g) {
@@ -136,7 +137,7 @@ function calculateConversions(initialQuantity, conversionInfo, initialUnit) {
   }
 
   // Always include the grams conversion
-  conversions.g = quantityInGrams;
+  conversions.g = parseFloat(quantityInGrams).toFixed(1);
 
   return conversions;
 }
@@ -396,32 +397,33 @@ const handleIngredientSelection = (ingredientName) => {
   };
 
   const removeIngredient = (index) => {
-    // Trigger fade-out animation for the item
-    document.getElementById(`ingredient-${index}`).style.animation = 'fadeOut 0.5s ease-out forwards';
+    const element = document.getElementById(`ingredient-${index}`);
+    if (element) {
+      element.classList.add('fade-out-and-collapse');
   
-    // Wait for the animation to complete before removing the item
-    setTimeout(() => {
-      setEditIngredients((currentIngredients) =>
-        currentIngredients.filter((_, i) => i !== index)
-      );
-    }, 500); // Match the duration of the animation
-  };
-  
-  
-  const removeInstruction = (index) => {
-    // Apply fade-out animation
-    const instructionElement = document.getElementById(`edit-instruction-input-${index}`);
-    if (instructionElement) {
-      instructionElement.style.animation = 'fadeOut 0.5s ease-out forwards';
-      
-      // Remove the instruction from state after animation completes
       setTimeout(() => {
-        setEditInstructions(currentInstructions =>
-          currentInstructions.filter((_, i) => i !== index)
+        setEditIngredients((currentIngredients) =>
+          currentIngredients.filter((_, i) => i !== index)
         );
-      }, 500); // Ensure this matches the duration of your CSS animation
+      }, 500); // The timeout should match your animation duration
     }
   };
+  
+  
+  // Similarly, you can do the same for instructions:
+  const removeInstruction = (instructionId) => {
+    const element = document.getElementById(`instruction-${instructionId}`)
+    if (element) {
+      element.classList.add('fade-out-and-collapse');
+    
+    setTimeout(() => {
+      setEditInstructions((currentInstructions) =>
+        currentInstructions.filter(instruction => instruction.id !== instructionId)
+      );
+    }, 500); // Match the duration of the animation
+  }
+  };
+  
   
   
   
@@ -733,7 +735,7 @@ const columnsClass = recipe.ingredients.length > 4 ? 'grid-cols-2' : 'grid-cols-
           <div className="bg-white shadow-md p-4 rounded-lg">
   <h3 className="text-2xl font-semibold text-center mb-2">Ingredients</h3>
   
-  <div className="grid md:grid-cols-2 gap-4">
+  <div className="grid max-h-[20em] md:max-h-[40em] overflow-auto md:grid-cols-2 gap-4">
     {recipe.ingredients.map((ingredient, index) => (
       <div key={index} className="flex items-center border-b border-gray-200 py-2">
         <div className="flex-grow">

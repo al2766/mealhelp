@@ -21,63 +21,86 @@ export const AuthProvider = ({ children }) => {
   const [justSignedUp, setJustSignedUp] = useState(false); // Track if user just signed up
 
 
-  // Function to sign up a new user
-  const signUp = async (email, password, confirmPassword) => {
-  
+// In AuthProvider.js
+
+const getErrorMessage = (error) => {
+  const firebaseErrors = {
+    "auth/email-already-in-use": "This email is already in use.",
+    "auth/invalid-credential": "Incorrect Email or Password",
+    "auth/user-not-found": "No user found with this email. Please sign up.",
+    "auth/wrong-password": "Incorrect password. Please try again.",
+    "auth/too-many-requests": "Too many attempts. Please try again later."
+    // Add more Firebase error codes as needed
+  };
+
+  const customErrors = {
+    "Passwords do not match.": "The passwords entered do not match. Please check and try again.",
+    "Please fill all the fields.": "All fields are required. Please fill them out and try again."
+    // Add more custom validation errors as needed
+  };
+
+  // Check for Firebase errors first
+  if (firebaseErrors[error]) {
+    return firebaseErrors[error];
+  }
+
+  // Check for custom validation errors
+  if (customErrors[error]) {
+    return customErrors[error];
+  }
+
+  // Fallback for unhandled errors
+  return "An unexpected error occurred. Please try again.";
+};
+
+
+// Adjusted signUp function in AuthProvider.js
+const signUp = (email, password, confirmPassword) => {
+  return new Promise(async (resolve, reject) => {
     if (!email || !password || !confirmPassword) {
-      setAuthError("Please fill all the fields.");
-      return;
+      return reject("Please fill all the fields.");
     }
-  
     if (password !== confirmPassword) {
-      setAuthError("Passwords do not match.");
-      return;
-    }
-  
-    try {
-       await createUserWithEmailAndPassword(auth, email, password);
-      // Update state or UI as needed
-
-      setIsLoading(false);
-      setAuthError("");
-      setJustSignedUp(true); // Set justSignedUp to true after successful sign-up
-
+      return reject("Passwords do not match.");
+    }    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+      resolve("Sign up successful!");
     } catch (error) {
-      console.log(error.message);
-      setAuthError(error.message);
-      setIsLoading(false);
+      reject(getErrorMessage(error.code)); // Use getErrorMessage function
     }
-  };
+  });
+};
 
-  // Function to sign in a user
-  const signIn = async (email, password) => {
-
-    if (!email || !password) {
-      setAuthError("Please provide both email and password.");
-      return;
-    }
+// Adjusted signIn function
+const signIn = (email, password) => {
+  return new Promise(async (resolve, reject) => {
+    // Your existing validation logic...
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      // Update state or UI as needed
-
-      setIsLoading(false);
-      setAuthError("");
+      await signInWithEmailAndPassword(auth, email, password);
+      resolve("Sign in successful!");
     } catch (error) {
-      setAuthError(error.message);
-      setIsLoading(false);
+      reject(getErrorMessage(error.code)); // Use getErrorMessage function
     }
-  
-  };
+  });
+};
 
-  const signOutUser = async () => {
+// Adjust signOutUser similarly if needed
+
+
+
+// Adjust signOutUser to return a promise in a similar way
+const signOutUser = () => {
+  return new Promise(async (resolve, reject) => {
     try {
-      await signOut(auth); // Use the signOut function from Firebase Auth and pass the auth instance
-      setAuthError(""); // Optionally reset the auth error state
+      await signOut(auth);
+      resolve("Signed out successfully");
     } catch (error) {
-      console.error("Sign out error:", error);
-      setAuthError(error.message); // Optionally update the auth error state with the sign-out error message
+      reject(error.message);
     }
-  };
+  });
+};
+
+
 
   useEffect(() => {
     // Listen for auth state changes

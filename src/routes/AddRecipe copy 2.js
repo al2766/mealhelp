@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { v4 as uuidv4 } from "uuid"; // Make sure to import uuid
 import Modal from '../components/Modal'; // Adjust the import path according to your file structure
+import LoadingSpinner from '../components/LoadingSpinner'; // Adjust the import path according to your file structure
 import { toast } from 'react-toastify';
 import { MdDelete } from 'react-icons/md';
+import { supabase } from "../supabaseClient";
 import { useAuth } from '../AuthProvider'; // Import the hook
 import { db } from '../firebase'; // Adjust the import path as needed
 import { collection, getDoc, getDocs, query, where, addDoc, doc, setDoc } from "firebase/firestore";
@@ -14,36 +16,58 @@ import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "fire
 
 
 export default function AddRecipe() {
-  const [stepTransition, setStepTransition] = useState('fade-enter'); // Initialize directly with 'fade-enter'
-  const [navigationDirection, setNavigationDirection] = useState('forward');
-  const { currentUser, signUp, signIn, signOutUser, authError } = useAuth();
+  
+  const { currentUser, signUp, signIn, signOutUser, authError, justSignedUp, setJustSignedUp } = useAuth();
   const [imagePreview, setImagePreview] = useState(null);
   const [bulkIngredientsCSV, setBulkIngredientsCSV] = useState('');
   const [ingredientNames, setIngredientNames] = useState([]);
-  const [chatGPTPrompt, setChatGPTPrompt] = useState('');
-  const [bulkModalStep, setBulkModalStep] = useState(0); // 0: Enter Ingredients, 1: Show Prompt, 2: Add Bulk Ingredients
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showChatGPTModal, setShowChatGPTModal] = useState(false);
+const [chatGPTPrompt, setChatGPTPrompt] = useState('');
+const [modalStep, setModalStep] = useState(0);
+const [currentStep, setCurrentStep] = useState(1);
+const totalSteps = 5; // Adjust based on how many questions you have
+
+const [currentStage, setCurrentStage] = useState(0);
+
+  const [removingIndex, setRemovingIndex] = useState(null);
+
   const [masterIngredients, setMasterIngredients] = useState([]);
   const fileInputRef = useRef(null);
+
   const [instructions, setInstructions] = useState([""]);
   const [imageFile, setImageFile] = useState(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [userListener, setUserListener] = useState(null);
   const [title, setTitle] = useState("");
   const [ingredients, setIngredients] = useState([
     { name: "", quantity: "", unit: "" },
   ]);
+  const [ingredientNameSelected, setIngredientNameSelected] = useState(
+    ingredients.map(() => false)
+  );  const [emailVerified, setEmailVerified] = useState(false);
+  const [showPhoneSignup, setShowPhoneSignup] = useState(false);
+  const [showMagicLinkSignin, setShowMagicLinkSignin] = useState(false);
   const [showEmailVerificationMessage, setShowEmailVerificationMessage] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 5; // Adjust based on how many questions you have
+
   const [isIngredientSelected, setisIngredientSelected] = useState(true); // New state for success modal
+  const [showSuccessModal, setShowSuccessModal] = useState(false); // New state for success modal
   const [showIngredientModal, setShowIngredientModal] = useState(false);
+  const [showFullModal, setShowFullModal] = useState(false);
+  const [userIngredients, setUserIngredients] = useState([]);
+  const [newIngredient, setNewIngredient] = useState("");
+  const [addingNewIngredient, setAddingNewIngredient] = useState(false);
+  const [uniqueIngredients, setUniqueIngredients] = useState([]);
   const [currentIngredientIndex, setCurrentIngredientIndex] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [startFadeOut, setStartFadeOut] = useState(false);
+
   const [showNewIngredientModal, setShowNewIngredientModal] = useState(false);
   const [showNewBulkIngredientModal, setShowNewBulkIngredientModal] = useState(false);
   const [newIngredientDetails, setNewIngredientDetails] = useState({
@@ -60,362 +84,189 @@ export default function AddRecipe() {
       tbsp_to_g: '',
     },
   });
-
-  // Define the animation classes based on navigation direction and transition state
-const animationEnterClass = navigationDirection === 'forward' ? 'fade-enter' : 'fade-enter-reverse';
-const animationExitClass = navigationDirection === 'forward' ? 'fade-exit' : 'fade-exit-reverse';
-
-// Choose enter or exit class based on the step transition state
-const appliedClass = stepTransition.includes('enter') ? animationEnterClass : animationExitClass;
-
-const toggleForm = () => {
-  const direction = isSigningUp ? 'backward' : 'forward'; // Reverse direction based on current form
-  setNavigationDirection(direction);
-  setStepTransition('fade-exit');
-
-  setTimeout(() => {
-    setIsSigningUp(!isSigningUp);
-    setStepTransition('fade-enter');
-  }, 300); // Delay to match exit animation
-};
-
-const moveToPreviousBulkStep = () => {
-  if (bulkModalStep > 0) {
-    setNavigationDirection('backward');
-    setStepTransition('fade-exit-reverse');
-    setTimeout(() => {
-      setBulkModalStep((prevStep) => prevStep - 1);
-      setStepTransition('fade-enter-reverse');
-    }, 300); // Match the timing with your CSS animations
-  }
-};
-
-
-const handleGeneratePrompt = () => {
-  // Animation and Navigation setup
-  setNavigationDirection('forward');
-  setStepTransition('fade-exit');
-  setTimeout(() => {
-    // Your existing logic
-    const instructions = "Please fill in the data below, estimating the values if you must without using n/a and without changing the format or key names:";
-    const ingredientList = ingredientNames.length > 0 ? `${instructions}\n`+ingredientNames.map(name => `Name: ${name}; cup_to_g: ; tbsp_to_g: ; each_to_g: ;`).join("\n") : "Please add ingredients first.";
-    const generatedPrompt = `${ingredientList}`;
-    setChatGPTPrompt(generatedPrompt);
-    setBulkModalStep(1); // Move to the next step
-    setStepTransition('fade-enter');
-  }, 300); // Adjust timing to match your CSS animations
-};
-
-  
-const handleCopyPrompt = () => {
-  setNavigationDirection('forward');
-  setStepTransition('fade-exit');
-  setTimeout(() => {
-    setBulkModalStep(2); // Move to the next step
-    setStepTransition('fade-enter');
-  }, 300); // Adjust timing to match your CSS animations
-};
-
-  
-const handleSubmitBulkIngredients = () => {
-  setNavigationDirection('forward');
-  setStepTransition('fade-exit');
-  setTimeout(() => {
-    handleAddBulkIngredient(); // Your existing logic to add bulk ingredients
-    // After adding ingredients, if you want to close the modal with an animation, you could do it here.
-    // setShowNewBulkIngredientModal(false); // Optionally reset or close the modal
-    // setStepTransition('fade-enter');
-  }, 300); // Adjust if you're applying a closing animation
-};
-
- 
-
-  const renderBulkStepContent = () => {
-
-     // Determine the applied classes based on the navigation direction and step transition state
-     const animationClass = `${stepTransition} ${
-      navigationDirection === 'forward' ? (stepTransition.includes('enter') ? 'fade-enter' : 'fade-exit') : (stepTransition.includes('enter') ? 'fade-enter-reverse' : 'fade-exit-reverse')
-  }`;
-
-    switch (bulkModalStep) {
-      case 0:
-        // Content for entering ingredients
-        return (
-          
-<div className={`modal-content ${animationClass}`}>
-            <h2 className="text-xl font-semibold mb-4">Input Ingredients</h2>
-    <textarea
-      className="w-full h-26 p-4 border rounded-md"
-      placeholder="Enter one ingredient then click enter..."
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          const value = e.target.value.trim();
-          if (value) {
-            setIngredientNames(prev => [...prev, value]);
-            e.target.value = ''; // Clear input after adding
-            e.preventDefault(); // Prevent default to avoid newline
-          }
-        }
-      }}
-    ></textarea>
-    <div className="flex flex-col mt-4">
-      {ingredientNames.map((name, index) => (
-        <div key={index} className="bg-gray-200 p-2 rounded mt-2">
-          {name}
-        </div>
-      ))}
-    </div>
-    <div className="flex justify-between mt-4">
-      
-    </div>
-        </div>
-        );
-      case 1:
-        // Content for displaying the ChatGPT prompt
-        return (
-          <div className={`modal-content ${animationClass}`}>
-<h2 className="text-xl font-semibold mb-4">ChatGPT Prompt</h2>
-    <p className="text-teal-600 mb-5">Copy this prompt into ChatGPT & use the reply in the next screen:</p>
-    <textarea
-      readOnly
-      className="w-full h-36 p-4 border rounded-md mb-4"
-      value={chatGPTPrompt}
-    ></textarea>
-    <div className="flex justify-between items-center">
-      <button
-        onClick={() => {
-          navigator.clipboard.writeText(chatGPTPrompt);
-          toast.success("Prompt copied to clipboard!");
-        }}
-        className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983]"
-      >
-        Copy
-      </button>
-    
-    </div>          </div>
-        );
-      case 2:
-        // Content for pasting and processing the ChatGPT response for bulk ingredients
-        return (
-          <div className={`modal-content ${animationClass}`}>
- <h2 className="text-xl font-semibold mb-4">Add Bulk Ingredients</h2>
-    <textarea
-      className="w-full h-64 p-4 border rounded-md"
-      placeholder={`Example format:
-Name: Apple; cup_to_g: 125; tbsp_to_g: 7.81; each_to_g: 182; calories: 52; protein: 0.3; fat: 0.2; carbs: 14
-Name: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein: 0; fat: 0; carbs: 100`}
-      value={bulkIngredientsCSV}
-      onChange={(e) => setBulkIngredientsCSV(e.target.value)}
-    ></textarea>
-    <div className="flex justify-end mt-4">
-     
-    </div>          </div>
-        );
-      default:
-        return null;
-    }
-  };
-
-  
-  
-  
   const moveToNextStep = () => {
     if (currentStep < totalSteps) {
-      setNavigationDirection('forward');
-      setStepTransition('fade-exit');
-      setTimeout(() => {
-        setCurrentStep((prevStep) => prevStep + 1);
-        setStepTransition('fade-enter');
-      }, 300); // Adjust timing as needed
+      setCurrentStep(currentStep + 1);
     }
   };
   
   const moveToPreviousStep = () => {
     if (currentStep > 1) {
-      setNavigationDirection('backward');
-      setStepTransition('fade-exit-reverse');
-      setTimeout(() => {
-        setCurrentStep((prevStep) => prevStep - 1);
-        setStepTransition('fade-enter-reverse');
-      }, 300); // Adjust timing as needed
+      setCurrentStep(currentStep - 1);
     }
   };
-  
 
   const renderCurrentStepContent = () => {
-
     switch (currentStep) {
       case 1:
         return (
-<div className={`modal-content ${stepTransition} ${navigationDirection === 'forward' ? 'fade-enter' : 'fade-enter-reverse'}`}>
-
-          <div className="flex flex-col items-center gap-4">
-          <h2 className="text-xl font-semibold mb-4">Ingredient Name</h2>
-          <div className="py-5">
-          <input
-            type="text"
-            placeholder="Ingredient Name"
-            value={newIngredientDetails.name}
-            onChange={(e) => setNewIngredientDetails({...newIngredientDetails, name: e.target.value})}
-            className="border border-gray-200 text-gray-700 rounded py-2 px-4 w-full" // Use full width for consistency
-          />
+          <div className="flex flex-col">
+            <input
+              type="text"
+              placeholder="Ingredient Name"
+              value={newIngredientDetails.name}
+              onChange={(e) => setNewIngredientDetails({...newIngredientDetails, name: e.target.value})}
+            />
           </div>
-        </div>
-        </div>
-        
         );
       case 2:
         return (
-<div className={`modal-content ${stepTransition} ${navigationDirection === 'forward' ? 'fade-enter' : 'fade-enter-reverse'}`}>
-
-          <div className="flex gap-4 flex-col items-center">
-          <h2 className="text-xl font-semibold mb-4">Grams in 1 Cup</h2>
-          <div className="flex items-center justify-between space-x-2 w-full py-5">
+        
+          <div className="flex space-x-2">
             <input
               type="number"
               placeholder="Grams in 1 cup"
               value={newIngredientDetails.conversion_info.cup_to_g}
               onChange={(e) => setNewIngredientDetails({...newIngredientDetails, conversion_info: {...newIngredientDetails.conversion_info, cup_to_g: e.target.value}})}
-              className="border border-gray-200 text-gray-700 rounded py-2 px-4 w-3/6"
+              className="flex-1"
             />
-            <button
-              onClick={() => window.open(`https://www.google.com/search?q=how+many+grams+in+one+cup+of+${encodeURIComponent(newIngredientDetails.name)}`, '_blank')}
-              className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 w-3/6 rounded inline-flex items-center justify-center"
-            >
-              Find Out ?
-            </button>
+         <button
+  onClick={() => window.open(`https://www.google.com/search?q=how+many+grams+in+one+cup+of+${encodeURIComponent(newIngredientDetails.name)}`, '_blank')}
+  className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center gap-2"
+>
+  
+  Find Out ?
+</button>
+
           </div>
-        </div>
-        </div>
        
         
         );
       case 3:
         return (
-<div className={`modal-content ${stepTransition} ${navigationDirection === 'forward' ? 'fade-enter' : 'fade-enter-reverse'}`}>
+          <div className="flex items-center space-x-2">
+            <input
+              type="number"
+              placeholder="Grams in 1 tbsp"
+              value={newIngredientDetails.conversion_info.tbsp_to_g}
+              onChange={(e) => setNewIngredientDetails({...newIngredientDetails, conversion_info: {...newIngredientDetails.conversion_info, tbsp_to_g: e.target.value}})}
+              className="flex-1"
 
-          <div className="flex gap-4 flex-col items-center">
-          <h2 className="text-xl font-semibold mb-4">Grams in 1 Tbsp</h2>
-  <div className="flex items-center justify-between space-x-2 w-full py-5">
-    <input
-      type="number"
-      placeholder="Grams in 1 tbsp"
-      value={newIngredientDetails.conversion_info.tbsp_to_g}
-      onChange={(e) => setNewIngredientDetails({...newIngredientDetails, conversion_info: {...newIngredientDetails.conversion_info, tbsp_to_g: e.target.value}})}
-      className="border border-gray-200 text-gray-700 rounded py-2 px-4 w-3/6"
-    />
-    <button
-      onClick={() => window.open(`https://www.google.com/search?q=how+many+grams+in+one+tablespoon+of+${encodeURIComponent(newIngredientDetails.name)}`, '_blank')}
-      className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 w-3/6 rounded inline-flex items-center justify-center"
-    >
-      Find Out ?
-    </button>
-  </div>
-</div>
-</div>
-
+            />
+             <button
+  onClick={() => window.open(`https://www.google.com/search?q=how+many+grams+in+one+tablespoon+of+${encodeURIComponent(newIngredientDetails.name)}`, '_blank')}
+  className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center gap-2"
+>
+  
+  Find Out ?
+</button>
+          </div>
         );
       case 4:
         return (
-<div className={`modal-content ${stepTransition} ${navigationDirection === 'forward' ? 'fade-enter' : 'fade-enter-reverse'}`}>
+          <div className="flex items-center space-x-2">
+            <input
+              type="number"
+              placeholder="Grams per piece (optional)"
+              value={newIngredientDetails.conversion_info.each_to_g || ''}
+              onChange={(e) => setNewIngredientDetails({...newIngredientDetails, conversion_info: {...newIngredientDetails.conversion_info, each_to_g: e.target.value}})}
+              className="flex-1"
 
-          <div className="flex gap-2">
-          <div className="flex flex-col gap-4 items-center ">
-          <h2 className="text-xl font-semibold mb-4">Grams per piece (optional)</h2>
-                         
-                         <div className="flex flex-row items-center justify-between space-x-2 py-5 w-full">
-  <input
-    type="number"
-    placeholder="Grams in 1 piece"
-    value={newIngredientDetails.conversion_info.each_to_g || ''}
-    onChange={(e) => setNewIngredientDetails({...newIngredientDetails, conversion_info: {...newIngredientDetails.conversion_info, each_to_g: e.target.value}})}
-    className="border border-gray-200 text-gray-700 rounded py-2 px-4 w-3/6" // Adjusted classes here
-  />
-  <button
-    onClick={() => window.open(`https://www.google.com/search?q=how+many+grams+in+one+piece+of+${encodeURIComponent(newIngredientDetails.name)}`, '_blank')}
-    className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 w-3/6 rounded inline-flex items-center justify-center"
-  >
-    Find Out ?
-  </button>
-</div>
-
-         </div>
-         </div>
-         </div>
-        );
-      case 5:
-        return (
-<div className={`modal-content ${stepTransition} ${navigationDirection === 'forward' ? 'fade-enter' : 'fade-enter-reverse'}`}>
-
-          <div className="flex flex-col items-center justify-center space-y-4 bg-white rounded-lg shadow">
-          <h2 className="text-xl font-semibold mb-4">Confirm Details</h2>
-            <div className="text-center p-4 bg-gray-100 rounded-lg w-full">
-              <p className="pb-2 border-b border-gray-300"><strong>Name:</strong> {newIngredientDetails.name}</p>
-              <p className="py-2 border-b border-gray-300"><strong>Grams in 1 Cup:</strong> {newIngredientDetails.conversion_info.cup_to_g}</p>
-              <p className="py-2 border-b border-gray-300"><strong>Grams in 1 Tbsp:</strong> {newIngredientDetails.conversion_info.tbsp_to_g}</p>
-              {newIngredientDetails.conversion_info.each_to_g && (
-                <p className="pt-2"><strong>Grams per Piece:</strong> {newIngredientDetails.conversion_info.each_to_g}</p>
-              )}
-            </div>
-           
-          </div>
+            />
+             <button
+  onClick={() => window.open(`https://www.google.com/search?q=how+many+grams+in+one+piece+of+${encodeURIComponent(newIngredientDetails.name)}`, '_blank')}
+  className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center gap-2"
+>
+  
+  Find Out ?
+</button>
           </div>
         );
-        
       default:
         return null;
     }
   };
   
-  const handleSignUp = () => {
-    toast.promise(
-      signUp(email, password, confirmPassword),
-      {
-        pending: 'Signing up...',
-        success: 'Sign up successful! Logging you in...',
-        error: {
-          render({data}) {
-            // data is the error message from the promise rejection
-            return `Error: ${data}`;
-          }
-        }
-      }
-    );
-  };
   
-  const handleSignIn = () => {
-    toast.promise(
-      signIn(email, password),
-      {
-        pending: 'Signing in...',
-        success: 'Sign in successful!',
-        error: {
-          render({data}) {
-            return `Error: ${data}`;
-          }
-        }
-      }
-    );
-  };
   
- // And use it with toast.promise in handleSignOut
-const handleSignOut = () => {
-  toast.promise(
-    signOutUser(),
-    {
-      pending: 'Signing out...',
-      success: 'Signed out successfully!',
-      error: {
-        render({data}) {
-          return `Error: ${data}`;
-        }
-      }
+
+  useEffect(() => {
+    if (justSignedUp) {
+      setShowEmailVerificationMessage(true); // Show verification message if user just signed up
+      setTimeout(() => {
+        setShowEmailVerificationMessage(false); // Hide verification message after a delay
+        setJustSignedUp(false); // Reset justSignedUp state
+      }, 3000); // Adjust the delay as needed
     }
-  );
-};
+  }, [justSignedUp, setJustSignedUp]);
+
+  const handleSignUp = async () => {
 
   
- 
+    setIsLoading(true);
+    try {
+      await signUp(email, password, confirmPassword);
+       setShowEmailVerificationMessage(true);
+      setTimeout(() => {
+         setIsSignedIn(true);
+         setShowEmailVerificationMessage(false);
+       }, 3000);
+      setIsLoading(false);
+    
+    } catch (error) {
+
+      setIsLoading(false);
+    }
+    
+  };
+  
+  const handleSignIn = async () => {
+   
+  
+    setIsLoading(true);
+    try {
+      await signIn(email, password);
+      setIsLoading(false);
+
+    } catch (error) {
+      console.error("Firebase sign in error:", error);
+     
+    }
+  };
+  
+  const handleSignOut = async () => {
+    setIsLoading(true); // Optional: Set a loading state
+  
+    try {
+      await signOutUser(); // Call signOutUser without passing the auth object
+      // Update application state or UI as needed
+      setIsSignedIn(false);
+      setEmail(""); // Clear email state
+      setPassword(""); // Clear password state
+      setConfirmPassword(""); // Clear password state
+
+      console.log("User signed out successfully");
+    } catch (error) {
+      // Handle errors (if any)
+     
+    }
+  
+    setIsLoading(false); // Optional: Clear loading state
+  };
+  
+
+  const renderEmailVerificationMessage = () => {
+    if (showEmailVerificationMessage) {
+      return (
+        <div className={`${
+          startFadeOut ? "animate-fade-out" : "animate-fade-in"
+        } fixed inset-0 bg-[#58acbb] bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center`}>
+          <div className="bg-white p-5 rounded-lg shadow-lg w-96">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Sign up Successful</h2>
+            <p className="text-gray-600">Signing you in now...</p>
+            <div className="flex justify-end mt-4">
+            <div className="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-8 w-8"></div>
+  
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+
+
 
   const PUBLIC_USER_ID = 'cJdHi6LhyAdlCnUpMlJ0u2KiDJF2'; // Replace with the actual ID of the owner account used for public recipes
 
@@ -544,7 +395,7 @@ const handleSignOut = () => {
         setIngredients(currentIngredients =>
           currentIngredients.filter((_, i) => i !== index)
         );
-      }, 100); // Animation duration
+      }, 500); // Animation duration
     }
   };
   
@@ -560,9 +411,10 @@ const handleSignOut = () => {
         setInstructions(currentInstructions =>
           currentInstructions.filter((_, i) => i !== index)
         );
-      }, 100); // Match this with the CSS animation duration
+      }, 500); // Match this with the CSS animation duration
     }
   };
+  
   const handleInstructionChange = (index, e) => {
     const newInstructions = instructions.map((instruction, i) => {
       if (i === index) {
@@ -676,11 +528,8 @@ const handleSignOut = () => {
     return; // Exit the function if the name is empty
   }
 
-  const { each_to_g, ...requiredConversionInfo } = newIngredientDetails.conversion_info;
-
-
   // Check if any of the nutrient info fields are empty
-  const conversionInfoValues = Object.values(requiredConversionInfo);
+  const conversionInfoValues = Object.values(newIngredientDetails.conversion_info);
   if (conversionInfoValues.some(value => !value.trim())) {
     toast.error("Please fill in all conversion information fields.");
     return; // Exit the function if any nutrient info field is empty
@@ -743,7 +592,6 @@ const handleSignOut = () => {
         });
         setShowNewIngredientModal(false); // Close the modal
         fetchIngredientsMaster(); // Refresh the ingredient list to include the newly added ingredient
-        setCurrentStep(1); // Reset to the first step
 
       }).catch((error) => {
         console.error("Error adding new ingredient:", error);
@@ -829,7 +677,7 @@ const handleSignOut = () => {
   };
   
   
-
+  
 
   
   
@@ -883,111 +731,129 @@ const handleImageChange = (event) => {
     <div className="w-full bg-gray-100">
       <div className="max-w-max mx-auto pt-[7rem] p-7">
         {!currentUser ? (
-  <div className="space-y-4">
-  <h2 className="text-2xl font-bold mb-4">
-         {isSigningUp ? "Sign Up" : "Log In"}
-       </h2>
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold mb-4">
+              Log In/Sign Up
+            </h2>
 
-       <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 flex flex-col">
-       <div className={`auth-form-content ${appliedClass}`}>
-         {/* Email Field */}
-         <div className="mb-4">
-           <label className="block text-grey-darker text-sm font-bold mb-2" htmlFor="email">
-             Email
-           </label>
-           <input
-             className="shadow appearance-none border rounded w-full py-2 px-3 text-grey-darker"
-             id="email"
-             type="email"
-             placeholder="Email"
-             value={email}
-             onChange={(e) => setEmail(e.target.value)}
-           />
-         </div>
+            <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 flex flex-col">
+              <div className="mb-4">
+                <label
+                  className="block text-grey-darker text-sm font-bold mb-2"
+                  htmlFor="email"
+                >
+                  Email
+                </label>
+                <input
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-grey-darker"
+                  id="email"
+                  type="email"
+                  placeholder="Email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <div className="mb-6">
+                <label
+                  className="block text-grey-darker text-sm font-bold mb-2"
+                  htmlFor="password"
+                >
+                  Password
+                </label>
+                <input
+                  className="shadow appearance-none border border-red rounded w-full py-2 px-3 text-grey-darker mb-3"
+                  id="password"
+                  type="password"
+                  placeholder="******************"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+              {isSigningUp && (
+  <div className="mb-6">
+    <label
+      className="block text-grey-darker text-sm font-bold mb-2"
+      htmlFor="confirmPassword"
+    >
+      Confirm Password
+    </label>
+    <input
+      className="shadow appearance-none border border-red rounded w-full py-2 px-3 text-grey-darker mb-3"
+      id="confirmPassword"
+      type="password"
+      placeholder="Confirm Password"
+      value={confirmPassword}
+      onChange={(e) => setConfirmPassword(e.target.value)}
+    />
+  </div>
+)}
+              <div className="flex gap-2 items-center justify-between">
+                <button
+                  className="bg-[#58acbb] transition duration-300 hover:bg-[#3e7983] text-white font-bold py-2 px-4 rounded"
+                  type="button"
+                  onClick={isSigningUp ? handleSignUp : handleSignIn}
+                >
+                  {isSigningUp ? "Sign Up" : "Sign In"}
+                </button>
+                <button
+                  className="inline-block align-baseline font-bold text-sm text-blue hover:text-blue-darker"
+                  type="button"
+                  onClick={() => setIsSigningUp(!isSigningUp)}
+                >
+                  {isSigningUp
+                    ? "Already have an account? Log In"
+                    : "Don't have an account? Sign Up"}
+                </button>
+              </div>
+            </div>
+            {authError && (
+              <p className="text-red-500 text-xs italic">{authError}</p>
+            )}
+{/* 
+<button
+            className="bg-[#58acbb] transition duration-300 hover:bg-[#3e7983] text-gray-600 font-bold py-2 px-4 rounded"
+            onClick={handleSignInWithMagicLink}
+          >
+            Sign In with Magic Link
+          </button> */}
+          {/* ... remaining form elements */}
+          {renderEmailVerificationMessage()}
+        
+              {renderEmailVerificationMessage()}
+              
 
-         {/* Password Field */}
-         <div className="mb-6">
-           <label className="block text-grey-darker text-sm font-bold mb-2" htmlFor="password">
-             Password
-           </label>
-           <input
-             className="shadow appearance-none border rounded w-full py-2 px-3 text-grey-darker"
-             id="password"
-             type="password"
-             placeholder="Password"
-             value={password}
-             onChange={(e) => setPassword(e.target.value)}
-           />
-         </div>
 
-         {/* Confirm Password Field (only if signing up) */}
-         {isSigningUp && (
-           <div className="mb-6">
-             <label className="block text-grey-darker text-sm font-bold mb-2" htmlFor="confirmPassword">
-               Confirm Password
-             </label>
-             <input
-               className="shadow appearance-none border rounded w-full py-2 px-3 text-grey-darker"
-               id="confirmPassword"
-               type="password"
-               placeholder="Confirm Password"
-               value={confirmPassword}
-               onChange={(e) => setConfirmPassword(e.target.value)}
-             />
-           </div>
-         )}
 
-         {/* Form Actions */}
-         <div className="flex gap-2 items-center justify-between">
-           <button
-             className="bg-[#58acbb] transition duration-300 hover:bg-[#3e7983] text-white font-bold py-2 px-4 rounded"
-             type="button"
-             onClick={isSigningUp ? handleSignUp : handleSignIn}
-           >
-             {isSigningUp ? "Sign Up" : "Sign In"}
-           </button>
-           <button
-             className="inline-block align-baseline font-bold text-sm text-blue hover:text-blue-darker"
-             type="button"
-              onClick={toggleForm}
-       >
-         {isSigningUp
-           ? "Already have an account? Log In"
-           : "Don't have an account? Sign Up"}
-       </button>
-     </div>
-     </div>
-   </div>
-   {authError && <p className="text-red-500 text-xs italic">{authError}</p>}
- </div>
+              
+          </div>
         ) : (
 
           
           <div className=" rounded-lg">
 <div className="gap-[1em] flex justify-between items-center border-b-2 py-4">
+<div className="grid grid-rows-2 grid-cols-2 gap-4">
   <button
     type="button"
-    onClick={() => {setShowNewIngredientModal(true)
-      setStepTransition('fade-enter'); // Initialize stepTransition for animation
-      setNavigationDirection('forward');}}
+    onClick={() => setShowNewIngredientModal(true)}
     className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983] transition duration-300 col-span-1"
   >
     Add New Ingredient
   </button>
   <button
     type="button"
-    onClick={() => {setShowNewBulkIngredientModal(true)
-      setBulkModalStep(0);
-       setStepTransition('fade-enter'); // Initialize stepTransition for animation
-      setNavigationDirection('forward'); // Start from entering ingredients
-    }}
-    
+    onClick={() => setShowNewBulkIngredientModal(true)}
     className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983] transition duration-300 col-span-1"
   >
     Add Bulk Ingredients
   </button>
- 
-
+  <button
+    type="button"
+    onClick={() => setShowFullModal(true)}
+    className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983] transition duration-300 col-span-2"
+  >
+    Help Me Add Ingredients
+  </button>
+</div>
 
   <button
     type="button"
@@ -1178,15 +1044,97 @@ className={`relative flex md:gap-2 md:flex-row flex-col sm:items-center mb-4 ${i
                 Add Recipe
               </button>
             </form>
-   
-
-            {showNewIngredientModal && (
-  <Modal showModal={showNewIngredientModal} setShowModal={setShowNewIngredientModal}>
-    <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+            {showHelpModal && (
+  <Modal showModal={showHelpModal} setShowModal={setShowHelpModal}>
+    <h2 className="text-xl font-semibold mb-4">Input Ingredients</h2>
+    <textarea
+      className="w-full h-36 p-4 border rounded-md"
+      placeholder="Enter one ingredient then click enter..."
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          const value = e.target.value.trim();
+          if (value) {
+            setIngredientNames(prevIngredientNames => {
+              console.log([...prevIngredientNames, value]); // Log the updated array for verification
+              return [...prevIngredientNames, value];
+            });
+            e.target.value = ''; // Clear input after adding
+          }
+          e.preventDefault(); // Prevent default to avoid newline
+        }
+      }}
       
-      <div className={`modal-content ${appliedClass}`}> {/* Apply the dynamic class here */}
-        {renderCurrentStepContent()}
-      </div>
+    ></textarea>
+    <div className="flex flex-col">
+      {ingredientNames.map((name, index) => (
+        <div key={index} className="bg-gray-200 p-2 rounded mt-2">
+          {name}
+        </div>
+      ))}
+    </div>
+    <div className="flex justify-end mt-4">
+    <button
+onClick={() => {
+  // Conditions for the prompt, detailing how each ingredient's data should be formatted
+  const conditions = `Each ingredient MUST INCLUDE cup_to_g and tbsp_to_g no matter what ingredient it is. Force those values even for ingredients that don’t typically get measured in those units like eggs, carrots, etc. Additionally, add each_to_g as well as cup_to_g and tbsp_to_g for ingredients that can be measured as individual pieces like eggs, carrots, apples, chicken breast, etc., but still include cup_to_g and tbsp_to_g for those ingredients.`;
+
+  // Dynamically generate the prompt based on user-added ingredients
+  const ingredientList = ingredientNames.map(name => `Name: ${name};`).join("\n");
+  const generatedPrompt = ingredientNames.length > 0
+  ? `Please provide me data for these ingredients in the following format:\n${ingredientList}\n\nFormat:\nName: Flour (All-purpose); cup_to_g: 125; tbsp_to_g: 7.81; calories: 364; protein: 10; fat: 1; carbs: 76\nName: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein: 0; fat: 0; carbs: 100\nName: Honey; cup_to_g: 340; tbsp_to_g: 21.25; calories: 304; protein: 0.3; fat: 0; carbs: 82\nName: Milk (Whole); cup_to_g: 244; tbsp_to_g: 15.25; calories: 61; protein: 3.15; fat: 3.25; carbs: 4.8\nName: Carrot; each_to_g: 61; cup_to_g: 110; tbsp_to_g: 6.88; calories: 41; protein: 0.93; fat: 0.24; carbs: 9.58\n\nwith these conditions:\n${conditions}`  : "Please add ingredients first.";
+
+  setChatGPTPrompt(generatedPrompt);
+  setIngredientNames([]);
+  setShowHelpModal(false); // Close the help modal
+  setShowChatGPTModal(true); // Open the ChatGPT modal to display the generated prompt
+}}
+
+  className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983]"
+>
+  Help
+</button>
+
+
+    </div>
+  </Modal>
+)}
+
+{showFullModal && (
+  <Modal showModal={showFullModal} setShowModal={setShowFullModal}>
+    {renderModalContent()}
+  </Modal>
+)}
+
+
+{showChatGPTModal && (
+  <Modal showModal={showChatGPTModal} setShowModal={setShowChatGPTModal}>
+    <div className="p-4">
+      <h2 className="text-xl font-semibold mb-4">ChatGPT Prompt</h2>
+      <p className="text-teal-600 mb-5">Enter this prompt in chat gpt, then use the reply to add bulk ingredients</p>
+      <textarea
+        readOnly
+        className="w-full h-56 p-4 border rounded-md mb-4"
+        value={chatGPTPrompt}
+      ></textarea>
+      <button
+        onClick={() => {
+          navigator.clipboard.writeText(chatGPTPrompt);
+          toast.success("Prompt copied to clipboard!");
+        }}
+        className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983]"
+      >
+        Copy
+      </button>
+    </div>
+  </Modal>
+)}
+
+
+{showNewIngredientModal && (
+  <Modal showModal={showNewIngredientModal} setShowModal={setShowNewIngredientModal}>
+    <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto"> {/* Increased padding and added spacing between elements, also made it scrollable if content exceeds viewport height */}
+      <h2 className="text-2xl font-semibold mb-6">Add New Ingredient</h2> {/* Increased bottom margin */}
+      {renderCurrentStepContent()}
       <div className="modal-footer flex justify-between mt-6 space-x-4"> {/* Increased margin top and space between buttons */}
         {currentStep > 1 && (
           <button onClick={moveToPreviousStep} className="bg-gray-300 hover:bg-gray-400 text-black font-bold py-2 px-4 rounded">
@@ -1200,7 +1148,6 @@ className={`relative flex md:gap-2 md:flex-row flex-col sm:items-center mb-4 ${i
             </button>
           ) : (
             <button onClick={handleAddIngredient} className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
-              
               Submit
             </button>
           )}
@@ -1208,62 +1155,30 @@ className={`relative flex md:gap-2 md:flex-row flex-col sm:items-center mb-4 ${i
       </div>
     </div>
   </Modal>
-
-  
 )}
 
-
-
-{showNewBulkIngredientModal && (
+ {showNewBulkIngredientModal && (
   <Modal showModal={showNewBulkIngredientModal} setShowModal={setShowNewBulkIngredientModal}>
-    <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-     
-
-      {renderBulkStepContent()}
-
-      <div className="modal-footer flex justify-between mt-6">
-  {bulkModalStep > 0 ? (
-    <button
-    onClick={moveToPreviousBulkStep}
-      className="bg-gray-300 hover:bg-gray-400 text-black font-bold py-2 px-4 rounded"
-    >
-      Back
-    </button>
-  ) : (
-    <div></div> // Empty div to keep the space and maintain layout
-  )}
-  <div> {/* This div will keep the Next/Submit button aligned to the right */}
-    {bulkModalStep === 0 && (
+    <h2 className="text-xl font-semibold mb-4">Add Bulk Ingredients</h2>
+    <textarea
+      className="w-full h-64 p-4 border rounded-md"
+      placeholder={`Example format:
+Name: Apple; cup_to_g: 125; tbsp_to_g: 7.81; each_to_g: 182; calories: 52; protein: 0.3; fat: 0.2; carbs: 14
+Name: Sugar (Granulated); cup_to_g: 200; tbsp_to_g: 12.5; calories: 387; protein: 0; fat: 0; carbs: `}
+      value={bulkIngredientsCSV}
+      onChange={(e) => setBulkIngredientsCSV(e.target.value)}
+    ></textarea>
+    <div className="flex justify-end mt-4">
       <button
-        onClick={handleGeneratePrompt}
-        className="bg-[#58acbb] hover:bg-[#3e7983] text-white font-bold py-2 px-4 rounded"
+        onClick={handleAddBulkIngredient}
+        className="bg-[#58acbb] text-white px-4 py-2 rounded transition duration-300 hover:bg-[#3e7983]"
       >
-        Next
+        Add Bulk Ingredients
       </button>
-    )}
-    {bulkModalStep === 1 && (
-      <button
-        onClick={handleCopyPrompt}
-        className="bg-[#58acbb] hover:bg-[#3e7983] text-white font-bold py-2 px-4 rounded"
-      >
-        Enter Response
-      </button>
-    )}
-    {bulkModalStep === 2 && (
-      <button
-        onClick={handleSubmitBulkIngredients}
-        className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-      >
-        Add Ingredients
-      </button>
-    )}
-  </div>
-</div>
-
-
     </div>
   </Modal>
 )}
+
 
 
 

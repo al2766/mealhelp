@@ -33,11 +33,38 @@ module.exports = {
           
           }
         },
+        fadeOutAndCollapse: {
+          '0%': {
+            opacity: '1',
+            maxHeight: '100px', // Adjust to match the content's natural height or use 'none' for auto
+            margin: '8px', // Adjust if your items have margin
+            padding: '8px', // Adjust if your items have padding
+          },
+          '100%': {
+            opacity: '0',
+            maxHeight: '0',
+            margin: '0',
+            padding: '0',
+          },
+        },
+        slideFadeOut: {
+          from: { transform: 'translateX(0%)', opacity: 1 },
+          to: { transform: 'translateX(-50%)', opacity: 0 },
+        },
+        slideFadeIn: {
+          from: { transform: 'translateX(50%)', opacity: 0 },
+          to: { transform: 'translateX(0%)', opacity: 1 },
+        },
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',
         'zoom-in': 'zoomIn 0.5s ease-in-out',
         'fade-out': 'fadeOut 0.5s ease-out',
+        'fade-out-and-collapse': 'fadeOutAndCollapse 0.5s ease-out forwards',
+        'slide-fade-out': 'slideFadeOut 0.5s forwards',
+        'slide-fade-in': 'slideFadeIn 0.5s forwards',
+
+
       },
     },
   },

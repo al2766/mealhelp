@@ -12,5 +12,69 @@
   font-family: "Lato", sans-serif;
 }
 
+@keyframes slideFadeInReverse {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideFadeOutReverse {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+}
+
+@keyframes slideFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideFadeOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+}
+/* Forward Animations */
+.fade-enter {
+  animation: slideFadeIn 0.5s forwards;
+}
+
+.fade-exit {
+  animation: slideFadeOut 0.5s forwards;
+}
+
+/* Reverse Animations */
+.fade-enter-reverse {
+  animation: slideFadeInReverse 0.5s forwards;
+}
+
+.fade-exit-reverse {
+  animation: slideFadeOutReverse 0.5s forwards;
+}
 
 
+.modal-content {
+  transition: max-height 0.5s ease-out;
+  overflow: hidden; /* Prevent content from overflowing during transition */
+}
