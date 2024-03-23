@@ -128,6 +128,32 @@ const handleSubmitBulkIngredients = () => {
   }, 300); // Adjust if you're applying a closing animation
 };
 
+
+const handleKeyDown = (e) => {
+  // Handle the Enter key, but not when combined with the Shift key (to allow line breaks)
+  if (e.key === 'Enter' && !e.shiftKey) {
+    const currentValue = e.target.value.trim();
+    if (currentValue) {
+      // Split the current value by lines
+      const lines = currentValue.split('\n');
+      // Add each line as a separate ingredient
+      setIngredientNames(prev => [...prev, ...lines.filter(line => line.trim() !== '')]);
+      // Clear the textarea
+      e.target.value = '';
+      // Prevent the default action to avoid creating a new line
+      e.preventDefault();
+    }
+  }
+};
+
+const handlePaste = (e) => {
+  const pastedText = e.clipboardData.getData('text');
+  const lines = pastedText.split('\n').filter(line => line.trim() !== '');
+  if (lines.length > 0) {
+    setIngredientNames(prev => [...prev, ...lines]);
+    e.preventDefault(); // Prevent the default paste action
+  }
+};
  
 
   const renderBulkStepContent = () => {
@@ -137,6 +163,8 @@ const handleSubmitBulkIngredients = () => {
       navigationDirection === 'forward' ? (stepTransition.includes('enter') ? 'fade-enter' : 'fade-exit') : (stepTransition.includes('enter') ? 'fade-enter-reverse' : 'fade-exit-reverse')
   }`;
 
+
+
     switch (bulkModalStep) {
       case 0:
         // Content for entering ingredients
@@ -144,19 +172,12 @@ const handleSubmitBulkIngredients = () => {
           
 <div className={`modal-content ${animationClass}`}>
             <h2 className="text-xl font-semibold mb-4">Input Ingredients</h2>
+            
     <textarea
       className="w-full h-26 p-4 border rounded-md"
-      placeholder="Enter one ingredient then click enter..."
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          const value = e.target.value.trim();
-          if (value) {
-            setIngredientNames(prev => [...prev, value]);
-            e.target.value = ''; // Clear input after adding
-            e.preventDefault(); // Prevent default to avoid newline
-          }
-        }
-      }}
+      placeholder="Enter ingredients (paste or type and hit Enter)..."
+      onKeyDown={handleKeyDown}
+      onPaste={handlePaste}
     ></textarea>
     <div className="flex flex-col mt-4">
       {ingredientNames.map((name, index) => (
@@ -165,9 +186,7 @@ const handleSubmitBulkIngredients = () => {
         </div>
       ))}
     </div>
-    <div className="flex justify-between mt-4">
-      
-    </div>
+
         </div>
         );
       case 1:
