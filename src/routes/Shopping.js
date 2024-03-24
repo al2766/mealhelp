@@ -11,6 +11,7 @@ import { useAuth } from '../AuthProvider'; // Ensure this path is correct
 function Shopping() {
   const { currentUser } = useAuth();
   const selectedRecipesRef = useRef(null);
+  const [checkedItems, setCheckedItems] = useState({});
 
   const listRef = useRef(null);
 
@@ -458,6 +459,27 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
   }, [selectedRecipesRef, recipes]); // Depend on recipes as it affects the content of selected recipes
   
 
+  const createCheckboxListString = () => {
+    return shoppingList.map(itemString => {
+      const { name } = parseQuantityString(itemString);
+      // Using "- [ ]" to create an unchecked checkbox in Markdown format, which may work in some apps
+      return `- [ ] ${name}\n`;
+    }).join('');
+  };
+  
+
+
+  const copyToClipboard = () => {
+    const checkboxListString = createCheckboxListString();
+    navigator.clipboard.writeText(checkboxListString).then(() => {
+      console.log('Copied to clipboard');
+      // Optionally, show a toast notification or some feedback here.
+    }).catch(err => {
+      console.error('Could not copy text: ', err);
+    });
+  };
+  
+
   return (
     <div className="text-[#616161] pt-32 pb-8 min-h-screen bg-gray-50">
       <h1 className="text-4xl font-bold text-teal-600 mb-14 text-center">Shopping</h1>
@@ -492,9 +514,21 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
 </ul>
 
         <h3 className="text-xl text-gray-600 font-bold pb-2 mb-4 border-b-2 border-black-200">Shopping List</h3>
+        <button onClick={copyToClipboard} className="copy-button bg-purple-600 text-white rounded p-2">
+  Copy List
+</button>
         {Object.values(recipes).some(recipe => recipe.count > 0) ? (
           <ul className=" max-h-[20.5em] overflow-auto list-none" ref={listRef}>
     {shoppingList.map((itemString, index) => {
+
+      // Handler to toggle the checkbox
+      const handleCheckboxChange = (itemName) => {
+        setCheckedItems(prevState => ({
+          ...prevState,
+          [itemName]: !prevState[itemName]
+        }));
+      };
+    
   const { name, grams, cups, tablespoons, pieces } = parseQuantityString(itemString);
   // Filter available units based on their existence and value
   const availableUnits = [
@@ -510,15 +544,26 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
   const nextUnit = availableUnits[(currentIndex + 1) % availableUnits.length];
 
   return (
-    <li key={index} className="animate-fade-in flex justify-between gap-3 items-center p-2 mb-1 rounded">
-      <span className="font-bold">{name}: {unitValue}</span>
-      <button 
-        onClick={() => cycleUnit(name, availableUnits)}
-        className="py-1 px-2 rounded text-white bg-[#58acbb] hover:bg-[#478a9b] transition-colors flex items-center gap-2"
-      >
-        <ArrowPathIcon className="h-5 w-5" aria-hidden="true" />
-        {nextUnit.charAt(0).toUpperCase() + nextUnit.slice(1)}
-      </button>
+    <li key={index} className="animate-fade-in flex items-center p-2 mb-1 rounded">
+      <input 
+        type="checkbox" 
+        id={`checkbox-${index}`}
+        checked={!!checkedItems[name]}
+        onChange={() => handleCheckboxChange(name)}
+        className="mr-2"
+      />
+      <label htmlFor={`checkbox-${index}`} className="flex-1 flex justify-between items-center">
+        <span className={`${checkedItems[name] ? 'line-through' : ''} font-bold`}>
+          {name}: {unitValue}
+        </span>
+        <button 
+          onClick={() => cycleUnit(name, availableUnits)}
+          className="py-1 px-2 rounded text-white bg-[#58acbb] hover:bg-[#478a9b] transition-colors flex items-center gap-2"
+        >
+          <ArrowPathIcon className="h-5 w-5" aria-hidden="true" />
+         
+        </button>
+      </label>
     </li>
   );
 })}

@@ -1,14 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "../supabaseClient";
-import { MdCheckCircle, MdEdit, MdSave } from "react-icons/md"; // Importing icons
-import { v4 as uuidv4 } from "uuid"; // Make sure to import uuid
+import { MdEdit, MdSave } from "react-icons/md"; // Importing icons
 import { useNavigate } from "react-router-dom";
 import placeholderImg from "../assets/images/placeholderImg.png";
 import { ArrowPathIcon } from '@heroicons/react/24/outline'; // Example for v2 using an arrow path icon
 import Modal from '../components/Modal'; // Adjust the import path according to your file structure
 import { useAuth } from '../AuthProvider'; // Import the hook
-
 import { db } from "../firebase"; // Adjust the import path as needed
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
@@ -33,10 +30,8 @@ export default function RecipeDetail() {
   const [newImageFile, setNewImageFile] = useState(null);
   const [showIngredientModal, setShowIngredientModal] = useState(false);
   const [userIngredients, setUserIngredients] = useState([]);
-  const [newIngredient, setNewIngredient] = useState('');
   const [searchQuery, setSearchQuery] = useState("");
   const [currentIngredientIndex, setCurrentIngredientIndex] = useState(null);
-  const [addingNewIngredient, setAddingNewIngredient] = useState(false);
 
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [editIngredients, setEditIngredients] = useState([{
