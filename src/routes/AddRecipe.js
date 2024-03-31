@@ -123,8 +123,7 @@ const handleCopyPrompt = () => {
 
   
 const handleSubmitBulkIngredients = () => {
-  setNavigationDirection('forward');
-  setStepTransition('fade-exit');
+
   setTimeout(() => {
     handleAddBulkIngredient(); // Your existing logic to add bulk ingredients
     // After adding ingredients, if you want to close the modal with an animation, you could do it here.
@@ -858,26 +857,31 @@ const handleSignOut = () => {
             }, {});
   
             const name = details['Name'];
-            const conversionInfo = {
-              cup_to_g: details['cup_to_g'],
-              tbsp_to_g: details['tbsp_to_g'],
-              // Only include each_to_g if it exists
-              ...(details['each_to_g'] && {each_to_g: details['each_to_g']}),
-            };
-            const nutrientInfo = {
-              calories: details['calories'],
-              protein: details['protein'],
-              fat: details['fat'],
-              carbs: details['carbs'],
-            };
+            if (!name) {
+              console.error(`Name is missing for line: ${line}`);
+              continue; // Skip this line and process the next one
+            }
   
             const ingredientNameCapitalized = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
             const ingredientDocRef = doc(db, "ingredients_master", ingredientNameCapitalized.replace(/ /g, '_'));
   
+            // Prepare conversion and nutrient info, ensuring data integrity
+            const conversionInfo = {
+              cup_to_g: parseFloat(details['cup_to_g']),
+              tbsp_to_g: parseFloat(details['tbsp_to_g']),
+              ...(details['each_to_g'] && {each_to_g: parseFloat(details['each_to_g'])}),
+            };
+            const nutrientInfo = {
+              calories: parseFloat(details['calories']),
+              protein: parseFloat(details['protein']),
+              fat: parseFloat(details['fat']),
+              carbs: parseFloat(details['carbs']),
+            };
+  
             // Check if ingredient already exists
             const docSnap = await getDoc(ingredientDocRef);
             if (docSnap.exists()) {
-              console.log(`${name} already exists.`);
+              console.log(`${ingredientNameCapitalized} already exists.`);
               continue; // Skip existing ingredients
             }
   
@@ -889,7 +893,7 @@ const handleSignOut = () => {
               user_id: currentUser.uid,
             });
   
-            console.log(`${name} added successfully.`);
+            console.log(`${ingredientNameCapitalized} added successfully.`);
           } catch (error) {
             console.error(`Error processing ingredient ${line}:`, error);
             reject(new Error(`Failed to process ingredient. Check format and try again.`));
@@ -908,7 +912,7 @@ const handleSignOut = () => {
       // Reset and close the modal after processing all ingredients
       setBulkIngredientsCSV('');
       setShowNewBulkIngredientModal(false);
-       fetchIngredientsMaster(); 
+      fetchIngredientsMaster();
     }).catch((error) => {
       console.error("Bulk addition error:", error);
       // Additional error handling if needed

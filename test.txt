@@ -1,3 +1,88 @@
+Apologies for the oversight. Here's the corrected list:
+
+```plaintext
+Name: Linguine; cup_to_g: 140; tbsp_to_g: 8.8;
+Name: Golden Syrup; cup_to_g: 340; tbsp_to_g: 21.3;
+Name: Angel Hair Pasta; cup_to_g: 140; tbsp_to_g: 8.8;
+Name: Chickpeas; cup_to_g: 200; tbsp_to_g: 12.5;
+Name: Harissa; cup_to_g: 240; tbsp_to_g: 15;
+Name: Lemon; each_to_g: 58; tbsp_to_g: 3.6;
+Name: Kimchi; cup_to_g: 120; tbsp_to_g: 7.5;
+Name: Fenugreek Leaves; cup_to_g: 10; tbsp_to_g: 0.6;
+Name: Aubergine; each_to_g: 450; cup_to_g: 218;
+Name: Chicken Stock; cup_to_g: 240; tbsp_to_g: 15;
+Name: Garlic Naan; each_to_g: 100; tbsp_to_g: 13.3;
+Name: Ghee; cup_to_g: 240; tbsp_to_g: 15;
+Name: Sardines; each_to_g: 90; tbsp_to_g: 15;
+Name: Potatoes; cup_to_g: 180; tbsp_to_g: 11.3;
+Name: Sugar; cup_to_g: 200; tbsp_to_g: 12.5;
+Name: Peas; cup_to_g: 160; tbsp_to_g: 10;
+
+Here are the corrections:
+
+
+Name: Ginger Powder; tbsp_to_g: 8; cup_to_g: 128;
+Name: Ginger (Fresh); each_to_g: 30; tbsp_to_g: 2; cup_to_g: 50;
+Name: Cinnamon Stick; cup_to_g: 2.5; tbsp_to_g: 3.9;
+Name: Green Cardamom; cup_to_g: 0.5; tbsp_to_g: 3.1;
+Name: Cloves; cup_to_g: 0.5; tbsp_to_g: 3.1;
+Name: Green Cardamon; cup_to_g: 0.5; tbsp_to_g: 3.1;
+Name: Clove; cup_to_g: 0.5; tbsp_to_g: 3.1;
+Name: Weetabix; each_to_g: 18; tbsp_to_g: 4.5;
+
+
+Name: Tumeric; tbsp_to_g: 3.75; cup_to_g: 4;
+Name: Garam Masala; tbsp_to_g: 5; cup_to_g: 5;
+Name: Cayenne; tbsp_to_g: 5; cup_to_g: 5;
+Name: Chilli; tbsp_to_g: 5; cup_to_g: 5;
+Name: Celery Salt; tbsp_to_g: 11.3; cup_to_g: 10;
+Name: BBQ Seasoning; tbsp_to_g: 5; cup_to_g: 5;
+Name: Garam Marsala; tbsp_to_g: 5; cup_to_g: 5;
+Name: Nutmeg; tbsp_to_g: 5; cup_to_g: 5;
+Name: Black Pepper; tbsp_to_g: 7.8; 
+Name: Oregano; tbsp_to_g: 1.3; cup_to_g: 0.8;
+Name: Thyme; tbsp_to_g: 1.9; cup_to_g: 1.2;
+Name: Cardamom; tbsp_to_g: 8; cup_to_g: 5;
+Name: Garlic Powder; tbsp_to_g: 8; cup_to_g: 5;
+Name: Onion Powder; tbsp_to_g: 8; cup_to_g: 5;
+Name: Paprika; tbsp_to_g: 8; cup_to_g: 5;
+Name: Ginger Spice; tbsp_to_g: 8; cup_to_g: 5;
+Name: Cinnamon; tbsp_to_g: 8; cup_to_g: 5;
+Name: Cumin; tbsp_to_g: 8; cup_to_g: 5;
+Name: Fennel Seeds; tbsp_to_g: 7.9; cup_to_g: 5;
+Name: Cajun; tbsp_to_g: 8; cup_to_g: 5;
+Name: Coriander Spice; tbsp_to_g: 8; cup_to_g: 5;
+Name: Cheese Slices; each_to_g: 20; tbsp_to_g: 5;
+
+Name: Carrot; each_to_g: 61; tbsp_to_g: each_to_g: 10; cup_to_g: 90;
+Name: Cauliflower; each_to_g: 400; tbsp_to_g: each_to_g: 25; cup_to_g: 240;
+Name: Potato; each_to_g: 213; tbsp_to_g: each_to_g: 11.3; cup_to_g: 120;
+Name: Chinese Leaf; each_to_g: 300; tbsp_to_g: each_to_g: 1.8; cup_to_g: 170;
+
+Name: Tomatoes; cup_to_g: 180; tbsp_to_g: 11.3;
+
+
+Name: Honey; cup_to_g: 340; tbsp_to_g: 21.3;
+Name: Egg Noodles; cup_to_g: 160; tbsp_to_g: 10;
+Name: Udon Noodles; cup_to_g: 200; tbsp_to_g: 12.5;
+Name: Sweet Chilli Sauce; cup_to_g: 240; tbsp_to_g: 15;
+Name: Heavy Cream; cup_to_g: 240; tbsp_to_g: 15;
+Name: Raisins; cup_to_g: 160; tbsp_to_g: 10;
+Name: Vine Leaves; each_to_g: 8; tbsp_to_g: 0.5; cup_to_g: 20;
+Name: Macaroni Pasta; cup_to_g: 140; tbsp_to_g: 8.8;
+Name: Breadcrumbs; cup_to_g: 115; tbsp_to_g: 7.2;
+Name: Blue Cheese; tbsp_to_g: 14; cup_to_g: 9;
+Name: Worcestershire Sauce; tbsp_to_g: 17; cup_to_g: 30;
+Name: Lettuce; cup_to_g: 55; tbsp_to_g: 3.4;
+Name: Cabbage; cup_to_g: 70; tbsp_to_g: 4.4;
+Name: Orzo Pasta; cup_to_g: 140; tbsp_to_g: 8.8;
+Name: Spaghetti; cup_to_g: 140; tbsp_to_g: 8.8;
+Name: Tomato Puree; cup_to_g: 245; tbsp_to_g: 15.3;
+
+
+
+
+
 Linguine
 Golden Syrup
 Angel Hair Pasta
