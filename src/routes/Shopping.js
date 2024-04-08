@@ -26,6 +26,8 @@ function Shopping() {
   const cycleUnit = (ingredientName, availableUnits) => {
     const currentIndex = currentUnitIndex[ingredientName] || 0;
     const nextIndex = (currentIndex + 1) % availableUnits.length;
+    console.log(availableUnits); // See what units are being considered available
+
     setCurrentUnitIndex(prevIndices => ({
       ...prevIndices,
       [ingredientName]: nextIndex,
@@ -33,15 +35,14 @@ function Shopping() {
   };
 
 
-
   const parseQuantityString = (quantityString) => {
-    // Define an object to hold the parsed quantities
     const parsedQuantities = {
       name: "",
-      grams: "0 g",
-      cups: "0 cups",
-      tablespoons: "0 tbsp",
-      pieces: "0 pieces",
+      grams: null,
+      cups: null,
+      tablespoons: null,
+      pieces: null,
+      originalUnit: null, // Add this line to initialize originalUnit
     };
   
     // Extract the name
@@ -54,16 +55,28 @@ function Shopping() {
     const quantityMatches = quantityString.match(/(\d+(\.\d+)?)( g| cups| tbsp| pieces)/g);
   
     if (quantityMatches) {
-      quantityMatches.forEach((match) => {
-        if (match.includes("g")) parsedQuantities.grams = match;
-        else if (match.includes("cups")) parsedQuantities.cups = match;
-        else if (match.includes("tbsp")) parsedQuantities.tablespoons = match;
-        else if (match.includes("pieces")) parsedQuantities.pieces = match;
+      quantityMatches.forEach((match, index) => {
+        const value = match.trim();
+        if (match.includes("g")) {
+          parsedQuantities.grams = value;
+          if (index === 0) parsedQuantities.originalUnit = "g";
+        } else if (match.includes("cups")) {
+          parsedQuantities.cups = value;
+          if (index === 0) parsedQuantities.originalUnit = "cups";
+        } else if (match.includes("tbsp")) {
+          parsedQuantities.tablespoons = value;
+          if (index === 0) parsedQuantities.originalUnit = "tbsp";
+        } else if (match.includes("pieces")) {
+          parsedQuantities.pieces = value;
+          if (index === 0) parsedQuantities.originalUnit = "pieces";
+        }
       });
     }
-  
+  console.log(parsedQuantities);
     return parsedQuantities;
   };
+  
+  
   
   
   useEffect(() => {
@@ -122,82 +135,71 @@ function Shopping() {
 
   
   
-  const convertQuantities = (quantity, unit, conversionInfo) => {
-    // Initialize converted quantities
-    let converted = {
-      grams: null,
-      cups: null,
-      tablespoons: null,
-      pieces: null, 
-    };
+// Assuming conversionInfo is an object with properties like cup_to_g, tbsp_to_g, and each_to_g
+const convertQuantities = (quantity, unit, conversionInfo) => {
+  let converted = [];
   
-    // Validate conversionInfo
-    if (conversionInfo && typeof conversionInfo === 'object') {
-      // Proceed with conversion based on the unit
-      switch (unit) {
-        case 'cups':
-            // Direct conversion from cups to grams
-            converted.cups = `${quantity} cups`;
-            converted.grams = (quantity * conversionInfo.cup_to_g).toFixed(1) + ' g';
-            // Assuming conversion from grams to pieces if each_to_g is available
-            if (conversionInfo.each_to_g) {
-              let grams = quantity * conversionInfo.cup_to_g;
-                converted.pieces = (grams / conversionInfo.each_to_g).toFixed(1) + ' pieces';
-            }
-            converted.tablespoons = (quantity * conversionInfo.cup_to_g / conversionInfo.tbsp_to_g).toFixed(1) + ' tbsp';
-            break;
-        case 'g':
-            // Direct conversion for grams
-            converted.grams = `${quantity} g`;
-            // Conversion from grams to pieces if each_to_g is available
-            if (conversionInfo.each_to_g) {
-                converted.pieces = (quantity / conversionInfo.each_to_g).toFixed(1) + ' pieces';
-            }
-            // Conversions to cups and tablespoons
-            converted.cups = (quantity / conversionInfo.cup_to_g).toFixed(1) + ' cups';
-            converted.tablespoons = (quantity / conversionInfo.tbsp_to_g).toFixed(1) + ' tbsp';
-            break;
-        case 'tbsp':
-            // Direct conversion from tablespoons to grams
-            converted.tablespoons = `${quantity} tbsp`;
-            converted.grams = (quantity * conversionInfo.tbsp_to_g).toFixed(1) + ' g';
+  switch (unit) {
+    case 'cups':
+      if (conversionInfo.cup_to_g && conversionInfo.cup_to_g !== "N/A") {
+        converted.push(`${quantity} cups`);
+        converted.push((quantity * conversionInfo.cup_to_g).toFixed(1) + ' g');
+      }
+      if (conversionInfo.each_to_g && conversionInfo.each_to_g !== "N/A") {
+        let grams = quantity * conversionInfo.cup_to_g;
+        converted.push((grams / conversionInfo.each_to_g).toFixed(1) + ' pieces');
+      }
+      if (conversionInfo.tbsp_to_g && conversionInfo.tbsp_to_g !== "N/A") {
+        converted.push((quantity * conversionInfo.cup_to_g / conversionInfo.tbsp_to_g).toFixed(1) + ' tbsp');
+      }
+      break;
+    case 'g':
+      converted.push(`${quantity} g`);
+      if (conversionInfo.each_to_g && conversionInfo.each_to_g !== "N/A") {
+        converted.push((quantity / conversionInfo.each_to_g).toFixed(1) + ' pieces');
+      }
+      if (conversionInfo.cup_to_g && conversionInfo.cup_to_g !== "N/A") {
+        converted.push((quantity / conversionInfo.cup_to_g).toFixed(1) + ' cups');
+      }
+      if (conversionInfo.tbsp_to_g && conversionInfo.tbsp_to_g !== "N/A") {
+        converted.push((quantity / conversionInfo.tbsp_to_g).toFixed(1) + ' tbsp');
+      }
+      break;
+    case 'tbsp':
+      if (conversionInfo.tbsp_to_g && conversionInfo.tbsp_to_g !== "N/A") {
+        converted.push(`${quantity} tbsp`);
+        converted.push((quantity * conversionInfo.tbsp_to_g).toFixed(1) + ' g');
+      }
+      if (conversionInfo.each_to_g && conversionInfo.each_to_g !== "N/A") {
+        let grams = quantity * conversionInfo.tbsp_to_g;
+        converted.push((grams / conversionInfo.each_to_g).toFixed(1) + ' pieces');
+      }
+      if (conversionInfo.cup_to_g && conversionInfo.cup_to_g !== "N/A") {
+        converted.push((quantity * conversionInfo.tbsp_to_g / conversionInfo.cup_to_g).toFixed(1) + ' cups');
+      }
+      break;
+    case 'pieces':
+      if (conversionInfo.each_to_g && conversionInfo.each_to_g !== "N/A") {
+        converted.push(`${quantity} pieces`);
+        let grams = quantity * conversionInfo.each_to_g;
+        converted.push(grams.toFixed(1) + ' g');
+        if (conversionInfo.cup_to_g && conversionInfo.cup_to_g !== "N/A") {
+          converted.push((grams / conversionInfo.cup_to_g).toFixed(1) + ' cups');
+        }
+        if (conversionInfo.tbsp_to_g && conversionInfo.tbsp_to_g !== "N/A") {
+          converted.push((grams / conversionInfo.tbsp_to_g).toFixed(1) + ' tbsp');
+        }
+      }
+      break;
+    default:
+      console.error('Unit not recognized for conversion');
+      return `${quantity} ${unit}`; // Return the original quantity and unit if it's not recognized
+  }
+  
+  // Filter out any "N/A" values and join the remaining valid values with a comma
+  return converted.filter(val => val && val !== "N/A").join(', ');
+};
 
-            // Conversion from grams to pieces if each_to_g is available
-            if (conversionInfo.each_to_g) {
-              let grams = quantity * conversionInfo.tbsp_to_g;
-                converted.pieces = (grams / conversionInfo.each_to_g).toFixed(1) + ' pieces';
-             
-              }
-            converted.cups = (quantity * conversionInfo.tbsp_to_g / conversionInfo.cup_to_g).toFixed(1) + ' cups';
-            break;
-            case 'pieces':
-              if (conversionInfo.each_to_g) {
-                  converted.pieces = `${quantity} pieces`;
-                  let grams = quantity * conversionInfo.each_to_g;
-                  converted.grams = grams.toFixed(1) + ' g';
-                  // Ensure conversion from grams to cups and tablespoons is only applied if relevant
-                  if (conversionInfo.cup_to_g) {
-                      converted.cups = (grams / conversionInfo.cup_to_g).toFixed(1) + ' cups';
-                  }
-                  if (conversionInfo.tbsp_to_g) {
-                      converted.tablespoons = (grams / conversionInfo.tbsp_to_g).toFixed(1) + ' tbsp';
-                  }
-              } else {
-                  console.error("Missing each_to_g conversion for pieces.");
-                  return quantity + ' pieces'; // Fallback if no each_to_g conversion is available
-              }
-              break;
-          
-        default:
-            console.error('Unit not recognized for conversion');
-            return `${quantity} ${unit}`; // Return the original quantity and unit if it's not one of the above
-    }
-    
-    // Combine the converted values, filtering out any "N/A" values
-    return Object.values(converted).filter(val => val !== "N/A").join(', ');
-  }    
-
-  };
   
   const parseQuantities = (quantitiesText) => {
     const quantities = {
@@ -461,9 +463,31 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
 
   const createCheckboxListString = () => {
     return shoppingList.map(itemString => {
-      const { name } = parseQuantityString(itemString);
-      // Using "- [ ]" to create an unchecked checkbox in Markdown format, which may work in some apps
-      return `- [ ] ${name}\n`;
+      const { name, grams, cups, tablespoons, pieces, originalUnit } = parseQuantityString(itemString);
+      
+      // Determine the quantity string based on the originalUnit
+      let quantityString;
+      switch(originalUnit) {
+        case 'g':
+          quantityString = grams;
+          break;
+        case 'cups':
+          quantityString = cups;
+          break;
+        case 'tbsp':
+          quantityString = tablespoons;
+          break;
+        case 'pieces':
+          quantityString = pieces;
+          break;
+        default:
+          // If for some reason the originalUnit doesn't match, default to an empty string or a placeholder
+          quantityString = '';
+      }
+  
+      // Construct the string for each item with the quantity and unit
+      // Note: Adjust the formatting as needed to fit your application's requirements
+      return `${name}: ${quantityString}\n`;
     }).join('');
   };
   
@@ -529,19 +553,66 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
         }));
       };
     
-  const { name, grams, cups, tablespoons, pieces } = parseQuantityString(itemString);
-  // Filter available units based on their existence and value
-  const availableUnits = [
-    { unit: 'grams', value: grams },
-    { unit: 'cups', value: cups },
-    { unit: 'tablespoons', value: tablespoons },
-  ].concat(pieces && pieces !== "0 pieces" ? [{ unit: 'pieces', value: pieces }] : [])
-   .map(item => item.unit);
+// Assuming parseQuantityString now also identifies the 'originalUnit'
+const { name, originalUnit, grams, cups, tablespoons, pieces } = parseQuantityString(itemString);
 
-  const currentIndex = currentUnitIndex[name] || 0;
-  const currentUnit = availableUnits[currentIndex];
-  const unitValue = { grams, cups, tablespoons, pieces }[currentUnit];
-  const nextUnit = availableUnits[(currentIndex + 1) % availableUnits.length];
+console.log("Original Unit:", originalUnit);
+console.log("Values - Cups:", cups, "Tablespoons:", tablespoons, "Pieces:", pieces, "Grams:", grams);
+
+// Helper function to check validity
+const isValidUnit = (value) => value && value !== "0" && value !== "N/A" && !isNaN(parseFloat(value));
+
+// Ensure consistency in unit naming for the check
+const unitValues = { grams, cups, tbsp: tablespoons, pieces }; // Note the change to 'tbsp'
+
+console.log("Validity - Cups:", isValidUnit(cups), "Tablespoons:", isValidUnit(tablespoons), "Pieces:", isValidUnit(pieces), "Grams:", isValidUnit(grams));
+
+// Initiate an empty array for valid units
+let validUnits = [];
+
+// Log the object used for validation
+console.log("Validation Object:", unitValues);
+
+// Add original unit first if it's valid, ensure to use 'tbsp' if the original unit was 'tablespoons' or vice versa based on your convention
+if (isValidUnit(unitValues[originalUnit])) {
+  validUnits.push({ unit: originalUnit, value: unitValues[originalUnit] });
+  console.log(`Added Original Unit First: ${originalUnit}`);
+}
+
+
+// Log to see if the original unit was added
+console.log("Valid Units after adding original unit:", validUnits);
+
+// Prepare units in the desired checking order but ensure the original unit is not duplicated
+const unitsOrder = ["grams", "cups", "tablespoons", "pieces"].filter(unit => unit !== originalUnit);
+
+// Dynamically add other valid units
+unitsOrder.forEach(unit => {
+  if (isValidUnit({ grams, cups, tablespoons, pieces }[unit])) {
+    validUnits.push({ unit, value: { grams, cups, tablespoons, pieces }[unit] });
+    console.log(`Added ${unit} to validUnits`);
+  }
+});
+
+// Log the final validUnits array
+console.log("Final Valid Units:", validUnits);
+
+// Convert array of units to just unit names for cycling functionality
+let availableUnits = validUnits.map(u => u.unit);
+
+console.log("Available Units for Cycling:", availableUnits);
+
+const currentIndex = currentUnitIndex[name] || 0;
+console.log(`Current Index for ${name}:`, currentIndex);
+
+const currentUnit = availableUnits[currentIndex];
+console.log(`Current Unit for ${name}:`, currentUnit);
+
+const unitValue = validUnits.find(u => u.unit === currentUnit)?.value;
+console.log(`Unit Value for ${name}:`, unitValue);
+
+// The rest of your cycling logic remains the same
+
 
   return (
     <li key={index} className="animate-fade-in flex items-center p-2 mb-1 rounded">

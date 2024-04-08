@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { MdEdit, MdSave } from "react-icons/md"; // Importing icons
 import { useNavigate } from "react-router-dom";
@@ -19,6 +19,7 @@ import { MdDelete } from 'react-icons/md';
 export default function RecipeDetail() {
   const { currentUser } = useAuth();
   const [ingredientsVersion, setIngredientsVersion] = useState(0);
+  const ingredientsListRef = useRef(null);
 
   let { recipeId } = useParams();
   const [recipe, setRecipe] = useState(null);
@@ -42,7 +43,49 @@ export default function RecipeDetail() {
   }]);
 
   
-
+  const checkAndApplyScrollMask = (element) => {
+    if (!element) return;
+  
+    console.log(element);
+    const atBottom = element.scrollHeight - element.scrollTop <= element.clientHeight;
+    console.log('At Bottom:', atBottom); // Debugging log
+  
+    if (atBottom) {
+      element.classList.remove('scrollable-mask2');
+      console.log('Mask Removed'); // Debugging log
+    } else {
+      element.classList.add('scrollable-mask2');
+      console.log('Mask Added'); // Debugging log
+    }
+  };
+  
+  useEffect(() => {
+    const element = ingredientsListRef.current;
+    if (!element) return;
+  
+    // Define a handler that applies the mask based on the scroll position
+    const onScroll = () => {
+      checkAndApplyScrollMask(element);
+    };
+  
+    // Apply the mask initially
+    checkAndApplyScrollMask(element);
+  
+    // Add the scroll event listener
+    element.addEventListener('scroll', onScroll);
+  
+    // Handle resize events
+    const resizeObserver = new ResizeObserver(() => {
+      checkAndApplyScrollMask(element);
+    });
+    resizeObserver.observe(element);
+  
+    // Cleanup function to remove the event listener and observer
+    return () => {
+      element.removeEventListener('scroll', onScroll);
+      resizeObserver.disconnect();
+    };
+  }, [recipe]); // Dependency array to re-run when recipe changes
   
   // Assuming these are the units you want to cycle through
   const switchUnit = (ingredientName) => {
@@ -121,13 +164,13 @@ function calculateConversions(initialQuantity, conversionInfo, initialUnit) {
   console.log(conversions)
 
   // Check and calculate conversions for all units from grams
-  if (conversionInfo.cup_to_g) {
+  if (conversionInfo.cup_to_g && conversionInfo.cup_to_g != 'N/A') {
     conversions.cups = (quantityInGrams / conversionInfo.cup_to_g).toFixed(1);
   }
-  if (conversionInfo.tbsp_to_g) {
+  if (conversionInfo.tbsp_to_g && conversionInfo.tbsp_to_g != 'N/A') {
     conversions.tbsp = (quantityInGrams / conversionInfo.tbsp_to_g).toFixed(1);
   }
-  if (conversionInfo.each_to_g) {
+  if (conversionInfo.each_to_g && conversionInfo.each_to_g != 'N/A') {
     conversions.pieces = (quantityInGrams / conversionInfo.each_to_g).toFixed(1);
   }
 
@@ -216,11 +259,22 @@ useEffect(() => {
 const handleIngredientSelection = (ingredientName) => {
   const masterIngredient = userIngredients.find(i => i.name === ingredientName);
   const conversionInfo = masterIngredient?.conversion_info;
-  
+
   if (currentIngredientIndex >= 0 && currentIngredientIndex < editIngredients.length) {
-    const newUnits = conversionInfo && conversionInfo.each_to_g
-      ? ["g", "cups", "tbsp", "pieces"]
-      : ["g", "cups", "tbsp"];
+    // Initialize with 'g' since it's always present
+    let newUnits = ['g'];
+
+    // Dynamically add units based on the availability and validity of conversion info
+    if (conversionInfo?.each_to_g && conversionInfo.each_to_g !== 'N/A') {
+      newUnits.push('pieces');
+    }
+    if (conversionInfo?.cup_to_g && conversionInfo.cup_to_g !== 'N/A') {
+      newUnits.push('cups');
+    }
+    if (conversionInfo?.tbsp_to_g && conversionInfo.tbsp_to_g !== 'N/A') {
+      newUnits.push('tbsp');
+    }
+    // Add more checks here if there are more units
 
     const updatedIngredients = editIngredients.map((ingredient, index) => {
       if (index === currentIngredientIndex) {
@@ -228,12 +282,13 @@ const handleIngredientSelection = (ingredientName) => {
           ...ingredient,
           name: ingredientName,
           availableUnits: newUnits,
+          // If the current unit is not in the newUnits list, default to the first available unit
           unit: newUnits.includes(ingredient.unit) ? ingredient.unit : newUnits[0]
         };
       }
       return ingredient;
     });
-    
+
     setEditIngredients(updatedIngredients);
     setShowIngredientModal(false);
   }
@@ -479,7 +534,7 @@ const handleTextAreaInput = (e, index) => {
   </div>
 
 
-    <div className="bg-white shadow-md text-gray-600 p-4 rounded-lg my-7">
+    <div className="bg-white shadow-md text-gray-600 p-4 rounded-lg my-7 animate-fadeInUp" style={{ animationDelay: '100ms', opacity: 0 }}>
       <label
         htmlFor="title"
         className="text-center block text-2xl font-bold mb-2"
@@ -495,7 +550,7 @@ const handleTextAreaInput = (e, index) => {
         
       />
     </div>
-    <div className="bg-white text-gray-600 shadow-md p-4 rounded-lg mb-4 flex justify-center items-center">
+    <div className="bg-white text-gray-600 shadow-md p-4 rounded-lg mb-4 flex justify-center items-center animate-fadeInUp" style={{ animationDelay: '100ms', opacity: 0 }}>
   <label htmlFor="imageUpload" className="block w-[18rem] h-[18rem] border-2 border-dashed border-gray-300 rounded-lg cursor-pointer flex justify-center items-center">
     <div className="text-center">
       {editImage ? (
@@ -515,7 +570,7 @@ const handleTextAreaInput = (e, index) => {
 </div>
 
 
-    <div className="text-gray-600 shadow-md bg-white p-4 rounded-lg mb-4">
+    <div className="text-gray-600 shadow-md bg-white p-4 rounded-lg mb-4 animate-fadeInUp" style={{ animationDelay: '100ms', opacity: 0 }}>
   <h3 className="text-2xl font-semibold text-center mb-2">Ingredients</h3>
   {editIngredients.map((ingredient, index) => (
   <div key={index} id={`ingredient-${index}`}
@@ -587,7 +642,7 @@ const handleTextAreaInput = (e, index) => {
             </button>
 </div>
 
-<div className="text-gray-600 shadow-md bg-white p-4 rounded-lg">
+<div className="text-gray-600 shadow-md bg-white p-4 rounded-lg animate-fadeInUp" style={{ animationDelay: '100ms', opacity: 0 }}>
       <h3 className="text-2xl font-semibold text-center mb-2">
         Instructions
       </h3>
@@ -710,12 +765,12 @@ const handleTextAreaInput = (e, index) => {
               </svg>
             </button>
           </div>
-<div className="my-4 border-b-2">
+<div className="my-4 border-b-2 animate-fadeInUp" style={{ animationDelay: '100ms', opacity: 0 }}>
           <h2 className="text-3xl font-bold text-center mb-4">
     {recipe.title}
   </h2>
 </div>
-          <div className="flex justify-center mb-6">
+          <div className="flex justify-center mb-6 animate-fadeInUp" style={{ animationDelay: '100ms', opacity: 0 }}>
           <img 
     src={recipe.image_url}
     alt={recipe.title} 
@@ -726,10 +781,11 @@ const handleTextAreaInput = (e, index) => {
           <div className="grid gap-4 mb-6">
      
 
-          <div className="bg-white shadow-md p-4 rounded-lg">
+          <div className="bg-white shadow-md p-4 rounded-lg animate-fadeInUp" style={{ animationDelay: '100ms', opacity: 0 }}>
   <h3 className="text-2xl font-semibold text-center mb-2">Ingredients</h3>
   
-  <div className="grid max-h-[20em] md:max-h-[40em] overflow-auto md:grid-cols-2 gap-4 scrollable-mask2">
+  <div   className="grid max-h-[20em] md:max-h-[40em] overflow-auto md:grid-cols-2 gap-4 scrollable-mask2" 
+  ref={ingredientsListRef}>
  
     {recipe.ingredients.map((ingredient, index) => (
       <div key={index} className="flex items-center border-b border-gray-200 py-2">
@@ -753,7 +809,7 @@ const handleTextAreaInput = (e, index) => {
 
 
 
-<div className="bg-white shadow-md p-4 rounded-lg">
+<div className="bg-white shadow-md p-4 rounded-lg animate-fadeInUp" style={{ animationDelay: '100ms', opacity: 0 }}>
   <h3 className="text-2xl font-semibold mb-5">Instructions</h3>
   <div className="space-y-2">
     {recipe.instructions.map((instruction, index) => (

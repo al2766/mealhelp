@@ -102,8 +102,8 @@ const handleGeneratePrompt = () => {
   setStepTransition('fade-exit');
   setTimeout(() => {
     // Your existing logic
-    const instructions = "Please fill in the following template with accurate measurements for each ingredient listed. you must Include 'cup_to_g' for the conversion from cups to grams, 'tbsp_to_g' for tablespoons to grams and, if applicable, append 'each_to_g' for applicable ingredients, whilst still keeping 'cup_to_g' and 'tbsp_to_g'. with the value for the weight of a standard piece or unit in grams or don't append. Here's an empty template to start with:";
-    const ingredientList = ingredientNames.length > 0 ? `${instructions}\n`+ingredientNames.map(name => `Name: ${name}; cup_to_g: 0; tbsp_to_g: 0;`).join("\n") : "Please add ingredients first.";
+    const instructions = "For each ingredient, provide conversions to grams for typical units of measurement used. If an ingredient isn't typically measured in a certain unit (e.g., tortilla in tablespoons), mark it as N/A. dont explain and just provide the formatted data. here is an empty template for you to fill accordingly:";
+    const ingredientList = ingredientNames.length > 0 ? `${instructions}\n`+ingredientNames.map(name => `Name: ${name}; cup_to_g: 0; tbsp_to_g: 0; each_to_g: 0;`).join("\n") : "Please add ingredients first.";
     const generatedPrompt = `${ingredientList}`;
     setChatGPTPrompt(generatedPrompt);
     setBulkModalStep(1); // Move to the next step
@@ -933,9 +933,18 @@ const handleSignOut = () => {
       currentIngredients.map((ingredient, idx) => {
         if (idx === currentIngredientIndex) {
           // Determine available units
-          let availableUnits = ['g', 'cups', 'tbsp'];
-          if (selectedIngredientInfo.conversion_info?.each_to_g) {
+          let availableUnits = ['g'];
+          if (selectedIngredientInfo.conversion_info?.each_to_g && selectedIngredientInfo.conversion_info.each_to_g !== 'N/A') {
             availableUnits.push('pieces'); // Add 'pieces' if applicable
+          }
+          if (selectedIngredientInfo.conversion_info?.cup_to_g && selectedIngredientInfo.conversion_info.cup_to_g !== 'N/A') {
+            availableUnits.push('cups'); // Add 'cups' if applicable
+          }
+          if (selectedIngredientInfo.conversion_info?.tbsp_to_g && selectedIngredientInfo.conversion_info.tbsp_to_g !== 'N/A') {
+            availableUnits.push('tbsp'); // Add 'tbsp' if applicable
+          }
+          if (selectedIngredientInfo.conversion_info?.tsp_to_g && selectedIngredientInfo.conversion_info.tsp_to_g !== 'N/A') {
+            availableUnits.push('tsp'); // Add 'tsp' if applicable
           }
   
           return {
@@ -974,7 +983,7 @@ const handleImageChange = (event) => {
     <div className="w-full bg-gray-100">
       <div className="max-w-max mx-auto pt-[7rem] p-7">
         {!currentUser ? (
-  <div className="space-y-4">
+  <div className="space-y-4 animate-fadeInUp" style={{ animationDelay: '100ms', opacity: 0 }}>
   <h2 className="text-2xl font-bold mb-4">
          {isSigningUp ? "Sign Up" : "Log In"}
        </h2>
@@ -1092,7 +1101,7 @@ const handleImageChange = (event) => {
 
             <form onSubmit={handleSubmit} className="mt-4 space-y-6">
               <div className="flex flex-col">
-                <div className="shadow-md shadow-md bg-white p-4 mb-8 rounded-lg">
+                <div className="shadow-md shadow-md bg-white p-4 mb-8 rounded-lg animate-fadeInUp" style={{ animationDelay: '100ms', opacity: 0 }}>
                   <h3 className="text-xl font-semibold text-gray-600 mb-4">
                     Recipe Title
                   </h3>
@@ -1108,7 +1117,7 @@ const handleImageChange = (event) => {
                   />
                 </div>
 
-                <div className="text-gray-600 shadow-md bg-white p-4 mb-8 rounded-lg">
+                <div className="text-gray-600 shadow-md bg-white p-4 mb-8 rounded-lg animate-fadeInUp" style={{ animationDelay: '100ms', opacity: 0 }}>
   <h3 className="text-xl font-semibold">Recipe Image</h3>
   <span className="text-sm">(leave blank for default image)</span>
   <div
@@ -1134,7 +1143,7 @@ const handleImageChange = (event) => {
 </div>
 
 
-                <div className="text-gray-600 shadow-md bg-white p-4 mb-8 rounded-lg">
+                <div className="text-gray-600 shadow-md bg-white p-4 mb-8 rounded-lg animate-fadeInUp" style={{ animationDelay: '100ms', opacity: 0 }}>
                   <h3 className="text-xl font-semibold  mb-4">Ingredients</h3>
     
   {ingredients.map((ingredient, index) => (
@@ -1215,7 +1224,7 @@ className={`relative flex md:gap-2 md:flex-row flex-col sm:items-center mb-4 ${i
                 </div>
   
 
-                <div className="text-gray-600 shadow-md bg-white p-4 rounded-lg">
+                <div className="text-gray-600 shadow-md bg-white p-4 rounded-lg animate-fadeInUp" style={{ animationDelay: '100ms', opacity: 0 }}>
                   <h3 className="text-xl font-semibold  mb-4">Instructions</h3>
                    {instructions.map((instruction, index) => (
                     <div 

@@ -83,6 +83,11 @@
   mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
 }
 
+.scrollable-mask2 {
+  /* Example CSS for a scrollable mask */
+  mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+}
+
 
 @media (max-width: 767px) {
   .scrollable-mask2 {
