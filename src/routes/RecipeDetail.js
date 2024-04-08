@@ -60,27 +60,35 @@ export default function RecipeDetail() {
     const element = ingredientsListRef.current;
     if (!element) return;
   
-    // Define a handler that applies the mask based on the scroll position
+    // Scroll event handler
     const onScroll = () => {
       checkAndApplyScrollMask(element);
     };
   
-   
-  
-    // Add the scroll event listener
-    element.addEventListener('scroll', onScroll);
-
-     // Apply the mask initially
-     checkAndApplyScrollMask(element);
-  
-  
-    // Cleanup function to remove the event listener and observer
-    return () => {
-      if (element) { 
-      element.removeEventListener('scroll', onScroll);
-      }
+    // Touch move event handler
+    const onTouchMove = () => {
+      // Optionally, you can check the scroll position here if needed
     };
-  }, [recipe]); // Dependency array to re-run when recipe changes
+  
+    // Touch end event handler
+    const onTouchEnd = () => {
+      // Check the scroll position when the user stops touching the screen
+      checkAndApplyScrollMask(element);
+    };
+  
+    // Apply the mask initially and add event listeners
+    checkAndApplyScrollMask(element);
+    element.addEventListener('scroll', onScroll);
+    element.addEventListener('touchmove', onTouchMove);
+    element.addEventListener('touchend', onTouchEnd);
+  
+    // Cleanup
+    return () => {
+      element.removeEventListener('scroll', onScroll);
+      element.removeEventListener('touchmove', onTouchMove);
+      element.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [recipe]); // Dependency array
   
   // Assuming these are the units you want to cycle through
   const switchUnit = (ingredientName) => {

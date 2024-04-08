@@ -430,35 +430,69 @@ const convertedQuantities = convertQuantities(totalQuantity, ingredient.unit, ma
   
   
   useEffect(() => {
-    if (!listRef.current) return; // Add this check
+    const element = listRef.current;
+    if (!element) return;
   
-    const handleScroll = () => checkAndApplyScrollMask(listRef);
-    const listElement = listRef.current;
-  
-    listElement.addEventListener('scroll', handleScroll);
-  
-    checkAndApplyScrollMask(listRef); // Initial check
-  
-    // Clean up
-    return () => {
-      if (listElement) { // Ensure listElement exists before trying to remove the event listener
-        listElement.removeEventListener('scroll', handleScroll);
-      }
+    // Scroll event handler
+    const onScroll = () => {
+      checkAndApplyScrollMask(listRef);
     };
-  }, [listRef, shoppingList]); // Adjusted for shoppingList useEffect
   
+    // Touch move event handler, you can opt to leave this empty
+    const onTouchMove = () => {};
   
+    // Touch end event handler
+    const onTouchEnd = () => {
+      checkAndApplyScrollMask(listRef);
+    };
   
-
+    element.addEventListener('scroll', onScroll);
+    element.addEventListener('touchmove', onTouchMove);
+    element.addEventListener('touchend', onTouchEnd);
+  
+    // Initial check to apply mask correctly based on initial content
+    checkAndApplyScrollMask(listRef);
+  
+    // Cleanup function to remove event listeners
+    return () => {
+      element.removeEventListener('scroll', onScroll);
+      element.removeEventListener('touchmove', onTouchMove);
+      element.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [listRef, shoppingList]); // Dependency array includes shoppingList to reapply logic when it changes
+  
+  // You can apply the same logic for other useEffect hooks where checkAndApplyScrollMask is called
   useEffect(() => {
+    const element = selectedRecipesRef.current;
+    if (!element) return;
+  
+    const onScroll = () => {
+      checkAndApplyScrollMask(selectedRecipesRef);
+    };
+  
+    const onTouchMove = () => {};
+  
+    const onTouchEnd = () => {
+      checkAndApplyScrollMask(selectedRecipesRef);
+    };
+  
+    element.addEventListener('scroll', onScroll);
+    element.addEventListener('touchmove', onTouchMove);
+    element.addEventListener('touchend', onTouchEnd);
+  
     checkAndApplyScrollMask(selectedRecipesRef);
   
-    // You may also want to re-check on window resize
+    // For handling window resize events
     const handleResize = () => checkAndApplyScrollMask(selectedRecipesRef);
     window.addEventListener('resize', handleResize);
   
-    return () => window.removeEventListener('resize', handleResize);
-  }, [selectedRecipesRef, recipes]); // Depend on recipes as it affects the content of selected recipes
+    return () => {
+      element.removeEventListener('scroll', onScroll);
+      element.removeEventListener('touchmove', onTouchMove);
+      element.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [selectedRecipesRef, recipes]); // Dependency array includes recipes to reapply logic when it changes
   
 
   const createCheckboxListString = () => {
