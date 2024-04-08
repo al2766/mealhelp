@@ -46,16 +46,13 @@ export default function RecipeDetail() {
   const checkAndApplyScrollMask = (element) => {
     if (!element) return;
   
-    console.log(element);
-    const atBottom = element.scrollHeight - element.scrollTop <= element.clientHeight;
+    const atBottom = element.scrollHeight - element.scrollTop === element.clientHeight;
     console.log('At Bottom:', atBottom); // Debugging log
   
     if (atBottom) {
-      element.classList.remove('scrollable-mask2');
-      console.log('Mask Removed'); // Debugging log
+      element.classList.remove('scrollable-mask');
     } else {
-      element.classList.add('scrollable-mask2');
-      console.log('Mask Added'); // Debugging log
+      element.classList.add('scrollable-mask');
     }
   };
   
@@ -68,22 +65,20 @@ export default function RecipeDetail() {
       checkAndApplyScrollMask(element);
     };
   
-    // Apply the mask initially
-    checkAndApplyScrollMask(element);
+   
   
     // Add the scroll event listener
     element.addEventListener('scroll', onScroll);
+
+     // Apply the mask initially
+     checkAndApplyScrollMask(element);
   
-    // Handle resize events
-    const resizeObserver = new ResizeObserver(() => {
-      checkAndApplyScrollMask(element);
-    });
-    resizeObserver.observe(element);
   
     // Cleanup function to remove the event listener and observer
     return () => {
+      if (element) { 
       element.removeEventListener('scroll', onScroll);
-      resizeObserver.disconnect();
+      }
     };
   }, [recipe]); // Dependency array to re-run when recipe changes
   
@@ -784,7 +779,7 @@ const handleTextAreaInput = (e, index) => {
           <div className="bg-white shadow-md p-4 rounded-lg animate-fadeInUp" style={{ animationDelay: '100ms', opacity: 0 }}>
   <h3 className="text-2xl font-semibold text-center mb-2">Ingredients</h3>
   
-  <div   className="grid max-h-[20em] md:max-h-[40em] overflow-auto md:grid-cols-2 gap-4 scrollable-mask2" 
+  <div   className="grid max-h-[20em] md:max-h-[40em] overflow-auto md:grid-cols-2 gap-4 scrollable-mask" 
   ref={ingredientsListRef}>
  
     {recipe.ingredients.map((ingredient, index) => (
