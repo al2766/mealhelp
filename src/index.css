@@ -29,4 +29,27 @@
     animation: fadeOut 0.5s forwards;
   }
   
+
+
+.recipe-detail {
+  background: repeating-linear-gradient(
+    white,
+    white 24px,
+    #e0e0e0 25px,
+    #e0e0e0 26px
+  );
+  font-family: sans-serif;
+  padding: 2rem;
+}
+
+.editable {
+  outline: none;
+  border-bottom: 1px solid transparent;
+  transition: border-bottom 0.3s;
+}
+
+.editable:focus {
+  border-bottom: 1px solid #000;
+}
+
   
